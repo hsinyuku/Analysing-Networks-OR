@@ -129,5 +129,5 @@ dmypy.json
 .pyre/
 
 # Things that simply don't need sharing
-Literature/
-Slides/
+Literature/*
+Slides/*
