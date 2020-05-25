@@ -131,4 +131,3 @@ dmypy.json
 # Things that simply don't need sharing
 Literature/*
 Slides/*
-*.pdf
