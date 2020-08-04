@@ -135,7 +135,7 @@ class Demo():
         self.item_id_pod_id_dict = {}
         #[0]
         self.warehouseInstance = self.prepareData()
-		self.distance_ij = self.initData()
+        self.distance_ij = self.initData()
         #[2]
         if storagePolicies.get('dedicated'):
             self.is_storage_dedicated = True
