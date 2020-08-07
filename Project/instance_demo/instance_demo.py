@@ -18,14 +18,15 @@ from operator import itemgetter, attrgetter
 from xml.dom import minidom
 import rafs_instance as instance
 
-instances[24,2] = r'data/sku24/layout_sku_24_2.xml'
-
 layoutFile = r'data/layout/1-1-1-2-1.xlayo'
 podInfoFile = 'data/sku24/pods_infos.txt'
 
+instances = {}
+instances[24,2] = r'data/sku24/layout_sku_24_2.xml'
+
 storagePolicies = {}
-#storagePolicies['dedicated'] = 'data/sku24/pods_items_dedicated_1.txt'
-storagePolicies['mixed'] = 'data/sku24/pods_items_mixed_shevels_1-5.txt'
+storagePolicies['dedicated'] = 'data/sku24/pods_items_dedicated_1.txt'
+#storagePolicies['mixed'] = 'data/sku24/pods_items_mixed_shevels_1-5.txt'
 
 orders = {}
 orders['10_5']=r'data/sku24/orders_10_mean_5_sku_24.xml'
@@ -127,10 +128,10 @@ class WarehouseDateProcessing():
                     d_ij[i,j] = dist                
                 
         return d_ij
-		
+
 class Demo():
     def __init__(self, splitOrders = False):
-
+        
         self.batch_weight = 18
         self.item_id_pod_id_dict = {}
         #[0]
@@ -141,7 +142,8 @@ class Demo():
             self.is_storage_dedicated = True
         else:
             self.is_storage_dedicated = False
-			
+
+
 	# warehouse instance
     def prepareData(self):
         print("[0] preparing all data with the standard format: ")
@@ -156,7 +158,7 @@ class Demo():
                 for storagePolicy, storagePolicyFile in storagePolicies.items():   
                     warehouseInstance = instance.Warehouse(layoutFile, instanceFile, podInfoFile, storagePolicyFile, orderFile)
         return warehouseInstance
-	
+
 	# distance
     def initData(self):
         print("[1] changing data format for the algorithm we used here: ")
@@ -167,6 +169,5 @@ class Demo():
 
 
 if __name__ == "__main__":
-    print("main:")
-    _demo = Demo()		
-	
+    _demo = Demo()	
+    print("todo:")
