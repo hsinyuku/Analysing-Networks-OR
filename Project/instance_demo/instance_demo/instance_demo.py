@@ -1,21 +1,10 @@
-#example to use
-import numpy as np
-import xml.etree.cElementTree as ET
+# example to use
 import networkx as nx
-import matplotlib.pyplot as plt
-import pandas as pd
-import itertools
-import datetime
-import pickle
-import traceback
 import os
 import os.path
 from os import path
-import math
 import json
 import time
-from operator import itemgetter, attrgetter 
-from xml.dom import minidom
 import rafs_instance as instance
 
 layoutFile = r'data/layout/1-1-1-2-1.xlayo'
@@ -128,6 +117,7 @@ class WarehouseDateProcessing():
                     d_ij[i,j] = dist                
                 
         return d_ij
+		
 
 class Demo():
     def __init__(self, splitOrders = False):
