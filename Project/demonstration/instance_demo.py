@@ -196,3 +196,4 @@ batch_weight = 18
 item_id_pod_id_dict = {}
 
 distance_ij = WarehouseDateProcessing(warehouseInstance).CalculateDistance()
+

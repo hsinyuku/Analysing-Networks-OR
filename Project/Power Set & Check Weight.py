@@ -5,7 +5,6 @@ Created on Tue Aug 11 13:54:23 2020
 @author: 93cha
 """
 
-
 import xml.etree.ElementTree as ET
 import pandas as pd
 import copy
