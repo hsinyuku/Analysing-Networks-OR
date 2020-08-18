@@ -160,43 +160,87 @@ for i in range(len(feasibleBatch)):
     batchList.append(batch)
     
 #%%
-distances = _demo.distance_ij
+# distances = _demo.distance_ij
 
-for i in range(24):
-    print(distances.get(('OutD0',str(i))))
+#%%
+# for i in range(24):
+#     print(distances.get(('OutD0',str(i))))
     
 #%% CREATE DISTANCE MATRICES
-    # Pull calculated distances out of Xie's code and reshape it into a distance
-    # matrix. Each dimension is (amount of items + 2 packing stations)
-    distMat = np.array(list(distances.values())).reshape(itemAmount + 2, itemAmount + 2)
-    # Convert to pandas DataFrame
-    distMat = pd.DataFrame(distMat)
-    # Add column names
-    distMat.columns = ['OutD0', 'OutD1'] + [i for i in range(0,24)]
-    # Add an indexing column FromPod
-    distMat.insert(0, "FromPod", distMat.columns)
-    distMat = distMat.set_index('FromPod')
-    
-    # Extract distances from pods back to the packing stations. This is the last
-    # step in calculating the route.
-    distToStation0 = distMat[["OutD0"]]
-    distToStation1 = distMat[["OutD1"]]
-    distMat = distMat.drop(["OutD0","OutD1"], axis = 1)
+# Pull calculated distances out of Xie's code and reshape it into a distance
+# matrix. Each dimension is (amount of items + 2 packing stations)
+distMat = np.array(list(distances.values())).reshape(itemAmount + 2, itemAmount + 2)
+
+# Convert to pandas DataFrame
+distMat = pd.DataFrame(distMat)
+
+# Add column names
+distMat.columns = ['OutD0', 'OutD1'] + [i for i in range(0,24)]
+
+# Add an indexing column FromPod
+distMat.insert(0, "FromPod", distMat.columns)
+distMat = distMat.set_index('FromPod')
+
+# Extract distances from pods back to the packing stations. This is the last
+# step in calculating the route.
+distToStation0 = distMat[["OutD0"]]
+distToStation1 = distMat[["OutD1"]]
+distMat = distMat.drop(["OutD0","OutD1"], axis = 1)
     
 #%% 
-    currentBatch = itemsInBatch[2]
-    route = ["OutD0"] 
+
+def FUNC_MinimumDistance(nodesOfPods, packingStation):
+    currentBatch = nodesOfPods.copy()
+    route = [packingStation] 
     totalDist = 0
-    
+
+    for i in range(len(nodesOfPods)):
+        dist = distMat.loc[route[i],currentBatch].to_frame()
+        # print("Compare distances:")
+        # print(dist)
+        nextNode = int(dist.idxmin())
+        # print("Next optimal node:")
+        # print(nextNode)
+        distNode = float(dist.min())
+        # print("Weight added")
+        # print(distNode)
+        route.append(nextNode)   
+        # print("Route so far:")
+        # print(route)
+        totalDist += float(distNode)
+        # print("Distance so far:")
+        # print(totalDist)
+        currentBatch.remove(nextNode)
+        # print("Pods left to visit:")
+        # print(currentBatch)
+
+    # print("Distance back to packing station:")
+    # print(float(distToStation0.loc[route[-1],:]))
+    totalDist += distToStation0.loc[route[-1],:]
+    totalDist = float(totalDist)
+    # print("Final dist:")
+    # print(totalDist)
+    route.append(packingStation)
+    return({"Route":route, "Distance": totalDist})
+
 #%%
-    for i in range(len(currentBatch)-1):
-        dist = distMat.loc[route[0],itemsInBatch[2]].to_frame()
-        print(dist)
-        nextNode = dist.idxmin()
-        print(nextNode)
-        distNode = dist.min()
-        print(distNode)
-        route.append(int(nextNode))   
-        # totalDist += distNode
-        # currentBatch.remove(nextNode)
-    # route = route + currentBatch
+fromStation0 = FUNC_MinimumDistance(itemsInOrderList[2], "OutD0")
+
+#%%     
+finalOrders = []
+count = 0
+for itemsInOrder in itemsInOrderList:
+    print("----Order " + str(count) +"----")
+    fromStation0 = FUNC_MinimumDistance(itemsInOrder, "OutD0")
+    print("If start at station 0:")
+    print(fromStation0)
+    fromStation1 = FUNC_MinimumDistance(itemsInOrder, "OutD1")
+    print("If start at station 1:")
+    print(fromStation1)
+    if fromStation0["Distance"] < fromStation1["Distance"]:
+        finalOrders.append({"orderID":count, "itemsInOrder" : itemsInOrder, "fromStation" : "OutD0" , "Distance" : fromStation0["Distance"]})
+        print("Choose station 0")
+    else: 
+        finalOrders.append({"orderID":count, "itemsInOrder" : itemsInOrder, "fromStation" : "OutD1" , "Distance" : fromStation1["Distance"]})
+        print("Choose station 1")
+    count += 1

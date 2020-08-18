@@ -20,12 +20,13 @@ import rafs_instance as instance
 
 layoutFile = r'data/layout/1-1-1-2-1.xlayo'
 podInfoFile = 'data/sku24/pods_infos.txt'
+podItemFile = 'data/sku24/pod_items_dedicated_1.txt'
 
 instances = {}
 instances[24,2] = r'data/sku24/layout_sku_24_2.xml'
 
 storagePolicies = {}
-storagePolicies['dedicated'] = 'data/sku24/pods_items_dedicated_1.txt'
+storagePolicies['dedicated'] = 'data/sku360/pods_items_dedicated_1.txt'
 #storagePolicies['mixed'] = 'data/sku24/pods_items_mixed_shevels_1-5.txt'
 
 orders = {}
@@ -38,7 +39,6 @@ class WarehouseDateProcessing():
         self._InitSets(warehouseInstance, batch_size)   
 
     def preprocessingFilterPods(self, warehouseInstance):
-        
         resize_pods = {}
         print("preprocessingFilterPods")
         item_id_list=[]
@@ -49,7 +49,8 @@ class WarehouseDateProcessing():
                 if item not in item_id_list:
                     item_id_list.append(item)
                     #print(item_id)
-       
+ 
+
         #for item in item_id_list:
         #    print(item)
 
@@ -126,7 +127,6 @@ class WarehouseDateProcessing():
             for i, values in d_ij_dict.items():
                 for j, dist in values.items():
                     d_ij[i,j] = dist                
-                
         return d_ij
 
 class Demo():
@@ -171,3 +171,6 @@ class Demo():
 if __name__ == "__main__":
     _demo = Demo()	
     print("todo:")
+
+#%%
+
