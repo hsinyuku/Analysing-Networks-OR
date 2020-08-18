@@ -31,7 +31,6 @@ class WarehouseDateProcessing():
         self._InitSets(warehouseInstance, batch_size)   
 
     def preprocessingFilterPods(self, warehouseInstance):
-        
         resize_pods = {}
         print("preprocessingFilterPods")
         item_id_list=[]
@@ -42,7 +41,8 @@ class WarehouseDateProcessing():
                 if item not in item_id_list:
                     item_id_list.append(item)
                     #print(item_id)
-       
+ 
+
         #for item in item_id_list:
         #    print(item)
 
@@ -119,7 +119,6 @@ class WarehouseDateProcessing():
             for i, values in d_ij_dict.items():
                 for j, dist in values.items():
                     d_ij[i,j] = dist                
-                
         return d_ij
 
 #%% 
