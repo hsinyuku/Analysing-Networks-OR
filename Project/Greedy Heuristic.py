@@ -18,14 +18,7 @@ import pandas as pd
 import copy
 import numpy as np
 
-#%% CONTROL KNOBS
-# Specify the number of orders we receive (either 10 or 20)
-orderAmount = 10
-
-# Specify the number of items in the warehouse (either 24 or 360)
-itemAmount = 24
-#%% F_itemsInOrder
-
+#%% 
 def F_orderInfo(orderID):
     itemList = []
     for itemID in warehouseInstance.Orders[orderID].Positions.keys():
@@ -45,13 +38,29 @@ def F_itemsInOrder(orderID):
     items = [int(i) for i in items]
     return(items)
 
+#%% 
+def F_itemsInBatch(batchList):
+    itemList = []
+    for orderID in batchList:
+        items = F_itemsInOrder(orderID)
+        itemList = list(set(itemList) | set(items))
+    return(itemList)
+
 #%% F_weightOfOrder
-def F_weighOfOrder(orderID):
+def F_weightOfOrder(orderID):
     totalWeight = 0
     orderInfo = F_orderInfo(orderID)
+    
     for item in orderInfo:
         totalWeight += item["Weight"] * item["Count"]
-    return(round(totalWeight), 2)
+    return(round(totalWeight, 2))
+
+#%% F_weightOfBatch
+def F_weightOfOrdersInBatch(orderList):
+    totalWeight = 0
+    for order in orderList:
+        totalWeight += F_weightOfOrder(order)
+    return(totalWeight)
 
 #%%
 def F_createDistMat():
@@ -69,8 +78,8 @@ def F_createDistMat():
     distMat.columns = ['OutD0', 'OutD1'] + [i for i in range(0,24)]
     
     # Add an indexing column FromPod
-    distMat.insert(0, "FromPod", distMat.columns)
-    distMat = distMat.set_index('FromPod')
+    distMat.insert(0, "fromPod", distMat.columns)
+    distMat = distMat.set_index('fromPod')
     
     # Extract distances from pods back to the packing stations. This is the last
     # step in calculating the route.
@@ -79,7 +88,7 @@ def F_createDistMat():
     distMat = distMat.drop(["OutD0","OutD1"], axis = 1) 
 
 #%% F_minDistance
-def F_MinDist(nodesOfPods, packingStation):
+def F_minDist(nodesOfPods, packingStation):
     
     # Call for distance matrix
     F_createDistMat()    
@@ -116,13 +125,14 @@ def F_MinDist(nodesOfPods, packingStation):
         # print(currentBatch)
 
     # print("Distance back to packing station:")
-    # print(float(distToStation0.loc[route[-1],:]))
-    totalDist += distToStation0.loc[route[-1],:]
+    # print(float(distMat.loc[packingStation,route[-1]]))
+    totalDist += distMat.loc[packingStation,route[-1]]
     totalDist = round(float(totalDist),2)
     # print("Final dist:")
     # print(totalDist)
     route.append(packingStation)
-    return({"Route":route, "Distance": totalDist})
+    return({"route":route, "distance": totalDist})
+
 #%% F_assignOrderToStation
 def F_assignOrderToStation(orderAmount, type = "full"):
     
@@ -132,43 +142,105 @@ def F_assignOrderToStation(orderAmount, type = "full"):
     for orderID in range(orderAmount):
         itemsInOrder = F_itemsInOrder(orderID)
         # print("----Order " + str(count) +"----")
-        fromStation0 = F_MinDist(itemsInOrder, "OutD0")
+        fromStation0 = F_minDist(itemsInOrder, "OutD0")
         # print("If start at station 0:")
         # print(fromStation0)
-        fromStation1 = F_MinDist(itemsInOrder, "OutD1")
+        fromStation1 = F_minDist(itemsInOrder, "OutD1")
         # print("If start at station 1:")
         # print(fromStation1)
         if type == "full":
-            if fromStation0["Distance"] < fromStation1["Distance"]:
-                station["OutD0"].append({"orderID":orderID, "itemsInOrder" : itemsInOrder, "Distance" : fromStation0["Distance"]})
+            if fromStation0["distance"] < fromStation1["distance"]:
+                station["OutD0"].append({"orderID":orderID, "itemsInOrder" : itemsInOrder, "distance" : fromStation0["distance"]})
                 # print("Choose station 0")
             else: 
-                station["OutD1"].append({"orderID":orderID, "itemsInOrder" : itemsInOrder, "Distance" : fromStation1["Distance"]})
+                station["OutD1"].append({"orderID":orderID, "itemsInOrder" : itemsInOrder, "distance" : fromStation1["distance"]})
                 # print("Choose station 1")
         elif type == "lite":
-            if fromStation0["Distance"] < fromStation1["Distance"]:
+            if fromStation0["distance"] < fromStation1["distance"]:
                 station["OutD0"].append(orderID)
             else: 
                 station["OutD1"].append(orderID)
     return(station)
 #%%
-
-def F_orderToBatch(listOfOrders):
-    batch = [[listOfOrders.pop(0)]]
-    batchList = []
+def F_orderToBatch(listOfOrders, packingStation):
+    batch = []
+    batch.append([listOfOrders.pop(0)])
     
     while (listOfOrders != []):
         batchCopy = copy.deepcopy(batch)  
-        print("batchCopy")
-        print(batchCopy)
-        nextOrder = listOfOrders.pop(0)
-        print("Next order")
-        print(nextOrder)
-        update = [batch.append(nextOrder) for batch in batchCopy]
-        # update = update + [nextOrder]
-        print("update")
-        print(update)
-        batch.append(update)
-        print("Batch now")
-        print(batch)       
-    return(batch)
+        # print("batchCopy")
+        # print(batchCopy)
+        nextOrder = [listOfOrders.pop(0)]
+        # print("Next order")
+        # print(nextOrder)
+        
+        # Add nextOrder to each of the batches in batchCopy to create new batches
+        batchCopy = [b + nextOrder for b in batchCopy]
+        # print("batchCopy + nextOrder")
+        # print(batchCopy)
+        
+        # Check weight capacity constraint of newly created batches
+        batchCopy = [b for b in batchCopy if F_weightOfOrdersInBatch(b) <= batch_weight]
+        
+        # Add nextOrder to batch as a feasible batch
+        batch.append(nextOrder)
+        
+        # Append new feasible batches in batchCopy to batch
+        batch = batch + batchCopy
+        # print("Batch now")
+        # print(batch)   
+    
+    batchInfo = []    
+    batchID = 0
+    for b in batch:
+        item = F_itemsInBatch(b)
+        dist = F_minDist(item, packingStation)["distance"]
+        route = F_minDist(item, packingStation)["route"]
+        del route[0]
+        del route[-1]
+        batchInfo.append({"batchID": batchID, "ordersInBatch": b, "routeInBatch" : route, "distance": dist})
+        batchID += 1
+    
+    batchInfo = pd.DataFrame(batchInfo)
+    return(batchInfo)
+
+#%%
+    station = F_assignOrderToStation(10, "lite")
+
+#%%
+    batchFromStation = []
+    for i in range(len(station)):
+        stationCopy = copy.deepcopy(station)
+        packingStation = list(stationCopy.keys())[i]
+        listOfOrders = list(stationCopy.values())[i]
+        batchFromStation.append({"station":packingStation, "batchInfo":F_orderToBatch(listOfOrders, packingStation)})
+    del stationCopy
+
+#%% MAIN SCRIPT
+# Source Xie's code (assuming the right working directory)
+from instance_demo import *
+    
+# Set control knobs
+# Specify the number of orders we receive (either 10 or 20)
+orderAmount = 10
+
+# Specify the number of items in the warehouse (either 24 or 360)
+itemAmount = 24
+
+# From all orders, assign them to the optimal packing station:
+# I use option "lite" here to get two list of orders for two packing station, as
+# input for the next function. To see information of the orders, use option "full"
+station = F_assignOrderToStation(10, "lite")
+
+# For each station, create feasible batches from the orders, which also includes
+# the sequence of pods visited for the cobot, as well as the minimum distance
+# travelled for that batch.
+batchFromStation = []
+
+for i in range(len(station)):
+    stationCopy = copy.deepcopy(station)
+    packingStation = list(stationCopy.keys())[i]
+    listOfOrders = list(stationCopy.values())[i]
+    batchFromStation.append({"station":packingStation, "batchInfo":F_orderToBatch(listOfOrders, packingStation)})
+del stationCopy
+
