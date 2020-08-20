@@ -199,7 +199,7 @@ def F_orderToBatch(listOfOrders, packingStation):
         route = F_minDist(item, packingStation)["route"]
         del route[0]
         del route[-1]
-        batchInfo.append({"batchID": batchID, "ordersInBatch": b, "routeInBatch" : route, "distance": dist})
+        batchInfo.append({"batchID": batchID, "ordersInBatch": b, "routeInBatch" : route, "distance": dist, "weight" : F_weightOfOrdersInBatch(b)})
         batchID += 1
     
     batchInfo = pd.DataFrame(batchInfo)
@@ -210,13 +210,13 @@ def F_greedyHeuristic(batchFromStation, packingStation):
     
     # Initialize
     greedyBatch = []
-    
+    batchFromStationCopy = copy.deepcopy(batchFromStation)
     # Extract orders from the station
     orderToCover = station.get(packingStation)
     
     # Extract the feasible batch information for corresponding station from 
     # batchFromStation object
-    batchInfo = [batch['batchInfo'] for batch in batchFromStation if batch['station'] == packingStation]
+    batchInfo = [batch['batchInfo'] for batch in batchFromStationCopy if batch['station'] == packingStation]
     batchInfo = batchInfo[0]    
     
     while orderToCover != []:
@@ -224,9 +224,10 @@ def F_greedyHeuristic(batchFromStation, packingStation):
         # print("Order to cover: " + str(orderToCover))
         
         # Calculate the amount of order a feasible batch can cover
+        value = []
         for i in list(batchInfo.index):
-            value = len(set(batchInfo.loc[i,"ordersInBatch"]) & set(orderToCover))
-            batchInfo.loc[i,"numberOfBatchCovered"] = value
+            value = value + [len(set(batchInfo.loc[i,"ordersInBatch"]) & set(orderToCover))]
+        batchInfo["numberOfBatchCovered"] = value
         
         # Preliminary criteria - batch has to cover at least 1 order
         nextBatch = batchInfo.query("numberOfBatchCovered > 0")
@@ -288,6 +289,7 @@ for i in range(len(station)):
     batchFromStation.append({"station":packingStation, "batchInfo":F_orderToBatch(listOfOrders, packingStation)})
 del stationCopy
 
+#%%
 # Final result for each of the station
 greedyStation0 = F_greedyHeuristic(batchFromStation, packingStation = "OutD0")
 greedyStation1 = F_greedyHeuristic(batchFromStation, packingStation = "OutD1")
