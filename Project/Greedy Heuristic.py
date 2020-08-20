@@ -17,6 +17,7 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 import copy
 import numpy as np
+import random as rd
 
 #%% 
 def F_orderInfo(orderID):
@@ -204,17 +205,60 @@ def F_orderToBatch(listOfOrders, packingStation):
     batchInfo = pd.DataFrame(batchInfo)
     return(batchInfo)
 
-#%%
-    station = F_assignOrderToStation(10, "lite")
-
-#%%
-    batchFromStation = []
-    for i in range(len(station)):
-        stationCopy = copy.deepcopy(station)
-        packingStation = list(stationCopy.keys())[i]
-        listOfOrders = list(stationCopy.values())[i]
-        batchFromStation.append({"station":packingStation, "batchInfo":F_orderToBatch(listOfOrders, packingStation)})
-    del stationCopy
+#%% F_greedyHeuristic(batchInfo):
+def F_greedyHeuristic(batchFromStation, packingStation):
+    
+    # Initialize
+    greedyBatch = []
+    
+    # Extract orders from the station
+    orderToCover = station.get(packingStation)
+    
+    # Extract the feasible batch information for corresponding station from 
+    # batchFromStation object
+    batchInfo = [batch['batchInfo'] for batch in batchFromStation if batch['station'] == packingStation]
+    batchInfo = batchInfo[0]    
+    
+    while orderToCover != []:
+        # batchInfo["numberOfBatchCovered"] = 0
+        # print("Order to cover: " + str(orderToCover))
+        
+        # Calculate the amount of order a feasible batch can cover
+        for i in list(batchInfo.index):
+            value = len(set(batchInfo.loc[i,"ordersInBatch"]) & set(orderToCover))
+            batchInfo.loc[i,"numberOfBatchCovered"] = value
+        
+        # Preliminary criteria - batch has to cover at least 1 order
+        nextBatch = batchInfo.query("numberOfBatchCovered > 0")
+        # print("Preliminary criteria - batch has to cover at least 1 order:")
+        # print(nextBatch)
+        
+        # Greedy criteria 1 - subset of batches with minimum distance travelled
+        nextBatch = nextBatch.query("distance == distance.min()")
+        # print("Min dist criteria (greedy):")
+        # print(nextBatch)
+        
+        # Greedy criteria 2 - subset of batches with maximum number of orders covered
+        nextBatch = nextBatch.query("numberOfBatchCovered == numberOfBatchCovered.max()")
+        # print("Max cover criteria:")
+        # print(nextBatch)
+        
+        # From that subset, randomly pick a batch and append it to the final result
+        random = rd.randint(0,len(nextBatch)-1)
+        nextBatch = dict(nextBatch.iloc[random,:])
+        # print("Choose random:")
+        # print(nextBatch)
+        greedyBatch.append(nextBatch)
+        
+        # Delete already covered orders out of orderToCover list
+        orderToCover = list(set(orderToCover) - set(nextBatch["ordersInBatch"]))
+        
+        # Delete the already chosen batch out of the batch list
+        batchToDelete = nextBatch["batchID"]
+        batchInfo = batchInfo[batchInfo["batchID"] != batchToDelete]
+    
+    greedyBatch = pd.DataFrame(greedyBatch)
+    return(greedyBatch)
 
 #%% MAIN SCRIPT
 # Source Xie's code (assuming the right working directory)
@@ -244,3 +288,6 @@ for i in range(len(station)):
     batchFromStation.append({"station":packingStation, "batchInfo":F_orderToBatch(listOfOrders, packingStation)})
 del stationCopy
 
+# Final result for each of the station
+greedyStation0 = F_greedyHeuristic(batchFromStation, packingStation = "OutD0")
+greedyStation1 = F_greedyHeuristic(batchFromStation, packingStation = "OutD1")
