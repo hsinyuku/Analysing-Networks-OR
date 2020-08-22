@@ -1,16 +1,9 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Tue Aug 18 23:05:37 2020
+Created on Sat Aug 22 15:01:29 2020
 
-@author: 93cha
-"""
-
-
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Aug 11 13:54:23 2020
-
-@author: 93cha
+@author: ElinaKu
 """
 
 import xml.etree.ElementTree as ET
@@ -275,8 +268,124 @@ def F_greedyHeuristic(batchFromStation, packingStation):
     greedyBatch = pd.DataFrame(greedyBatch)
     return(greedyBatch)
 
+#%% F_greedyHeuristicTry(batchInfo): added by Jade
+def F_greedyHeuristicTry(batchFromStation, packingStation):
+    
+    # Initialize
+    greedyBatch = []
+    batchFromStationCopy = copy.deepcopy(batchFromStation)
+    # Extract orders from the station
+    orderToCover = station.get(packingStation)
+    
+    # Extract the feasible batch information for corresponding station from 
+    # batchFromStation object
+    batchInfo = [batch['batchInfo'] for batch in batchFromStationCopy if batch['station'] == packingStation]
+    batchInfo = batchInfo[0]  #list becomes a pandas dataframe
+    #print("batchInfo is:")
+    #print(batchInfo)
+    
+    while orderToCover != []:
+        print("-----Next Batch-----")      
+        batchInfo["numberOfBatchCovered"] = 0
+        print("Order to cover: " + str(orderToCover))
+        
+        # Calculate the amount of order a feasible batch can cover
+        value = []
+        for i in list(batchInfo.index): #for i=0~9
+            value = value + [len(set(batchInfo.loc[i,"ordersInBatch"]) & set(orderToCover))]
+            #print(len(set(batchInfo.loc[i,"ordersInBatch"])))
+            #print(set(orderToCover))  #{0,1,6,7,9} for Out0
+            #print([len(set(batchInfo.loc[i,"ordersInBatch"]) & set(orderToCover) )])
+            #print(type(value)) #list
+            #print(value)
+        batchInfo["numberOfBatchCovered"] = value
+        #print(batchInfo)
+        
+        # # Preliminary criteria 1 - batch has to cover at least 1 order
+        #nextBatch = batchInfo.query("numberOfBatchCovered > 0") 
+        #print("Preliminary criteria - batch has to cover at least 1 order:")
+        #print(nextBatch)
+        
+        # Preliminary criteria 2 - batch is a subset of orderToCover (to avoid
+        # a batch being covered more than once)
+        nextBatch = copy.deepcopy(batchInfo)
+        for i in nextBatch.index:
+            canCover = nextBatch.loc[i].ordersInBatch #list
+            if all([compare in orderToCover for compare in canCover]) == False:
+                nextBatch = nextBatch.drop(i)
+        print("Prelim: Batch in a subset of orderToCover")
+        print(nextBatch)      
+        
+        # Greedy criteria 1 - subset of batches with minimum distance travelled
+        #print(nextBatch.loc[:,'distance'])
+        nextBatch = nextBatch.query("distance == distance.min()")
+        print("Min dist criteria (greedy):")
+        print(nextBatch)
+        
+        # Greedy criteria 2 - subset of batches with maximum number of orders covered
+        nextBatch = nextBatch.query("numberOfBatchCovered == numberOfBatchCovered.max()")
+        print("Max cover criteria:")
+        print(nextBatch)
+        
+         # From that subset, randomly pick a batch and append it to the final result
+        random = rd.randint(0,len(nextBatch)-1)
+        #print("random is: " +str(random))
+        #print(type(nextBatch.iloc[random,:])) #a panda series
+        #print(dict(nextBatch.iloc[random,:]))
+        nextBatch = dict(nextBatch.iloc[random,:])
+        print("Choose random:")
+        print(nextBatch)
+        greedyBatch.append(nextBatch)
+        #print(greedyBatch) #a list
+        
+        # Delete already covered orders out of orderToCover list
+        orderToCover = list(set(orderToCover) - set(nextBatch["ordersInBatch"]))
+        #print(orderToCover)
+        
+        # Delete the already chosen batch out of the batch list
+        batchToDelete = nextBatch["batchID"]
+        #print("Delete: !!!!!!!!!!")
+        #print(batchToDelete)
+        batchInfo = batchInfo[batchInfo["batchID"] != batchToDelete]
+        
+    
+    greedyBatch = pd.DataFrame(greedyBatch)
+    #print(greedyBatch)
+    return(greedyBatch)
+  
+        
+        
+
 #%% MAIN SCRIPT
 # Source Xie's code (assuming the right working directory)
+#from instance_demo import *
+    
+# Set control knobs
+# Specify the number of orders we receive (either 10 or 20)
+orderAmount = 10
+
+# Specify the number of items in the warehouse (either 24 or 360)
+itemAmount = 24
+
+# From all orders, assign them to the optimal packing station:
+# I use option "lite" here to get two list of orders for two packing station, as
+# input for the next function. To see information of the orders, use option "full"
+station = F_assignOrderToStation(10, "lite")
+
+# For each station, create feasible batches from the orders, which also includes
+# the sequence of pods visited for the cobot, as well as the minimum distance
+# travelled for that batch.
+batchFromStation = []
+
+for i in range(len(station)):
+    stationCopy = copy.deepcopy(station)
+    packingStation = list(stationCopy.keys())[i]
+    listOfOrders = list(stationCopy.values())[i]
+    batchFromStation.append({"station":packingStation, "batchInfo":F_orderToBatch(listOfOrders, packingStation)})
+del stationCop
+#%% MAIN SCRIPT
+# Source Xie's code (assuming the right working directory)
+
 from instance_demo import *
     
 # Set control knobs
@@ -304,12 +413,14 @@ for i in range(len(station)):
 del stationCopy
 
 #%%
-# Final result for each of the station
-greedyStation0 = F_greedyHeuristic(batchFromStation, packingStation = "OutD0")
-greedyStation1 = F_greedyHeuristic(batchFromStation, packingStation = "OutD1")
+# Final greedy result for each of the station
 
-#%% Jade added for randdom Neibour (algorithm 4 in overleaf)
-# (All above this section is written by Chan)
+#greedyStation0_try = F_greedyHeuristicTry(batchFromStation, packingStation = "OutD0")
+greedyStation0 = F_greedyHeuristic(batchFromStation, packingStation = "OutD0")
+#greedyStation1 = F_greedyHeuristic(batchFromStation, packingStation = "OutD1")
+
+
+#%% Jade_added for randdom Neibour (algorithm 4 in overleaf)
 
 def F_randomNeibour(batchSolution):
     #batchSolution = F_greedyHeuristicTry(batchFromStation, packingStation)
@@ -358,7 +469,12 @@ def F_randomNeibour(batchSolution):
     print(batchSolutionPretend)
     
     return(batchSolutionPretend)
+
     
 # results of random neibour
 randomNeibour0 = F_randomNeibour(greedyStation0)
 randomNeibour1 = F_randomNeibour(greedyStation1)
+
+
+
+

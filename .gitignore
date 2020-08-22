@@ -131,3 +131,14 @@ dmypy.json
 # Things that simply don't need sharing
 Literature/*
 Slides/*
+Project/instance_demo/data/layout/.DS_Store
+Project/instance_demo/data/.DS_Store
+Project/instance_demo/.DS_Store
+Project/Greedy Heuristic.py
+Project/demonstration/rafs_instance/.DS_Store
+Project/demonstration/data/layout/d_ij1-1-1-5-240ModDepot.xinst.tupledict
+Project/demonstration/data/layout/.d_ij1-1-1-5-240ModDepot.xinst.tupledict.icloud
+Project/demonstration/data/.DS_Store
+Project/demonstration/.DS_Store
+Project/.DS_Store
+.DS_Store
