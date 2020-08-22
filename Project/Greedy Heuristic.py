@@ -31,7 +31,10 @@ def F_orderInfo(orderID):
 
 #%% F_itemInfo
 def F_itemInfo(itemID):
-    return(warehouseInstance.ItemDescriptions[str(itemID)].__dict__)
+    item = warehouseInstance.ItemDescriptions[str(itemID)].__dict__
+    itemDesc = item["Color"] + "/" + item["Letter"]
+    item["Description"] = itemDesc
+    return(item)
     
 #%% F_itemsInOrder
 def F_itemsInOrder(orderID):
@@ -220,8 +223,9 @@ def F_greedyHeuristic(batchFromStation, packingStation):
     batchInfo = batchInfo[0]    
     
     while orderToCover != []:
-        # batchInfo["numberOfBatchCovered"] = 0
-        # print("Order to cover: " + str(orderToCover))
+        print("-----Next Batch-----")      
+        batchInfo["numberOfBatchCovered"] = 0
+        print("Order to cover: " + str(orderToCover))
         
         # Calculate the amount of order a feasible batch can cover
         value = []
@@ -229,26 +233,36 @@ def F_greedyHeuristic(batchFromStation, packingStation):
             value = value + [len(set(batchInfo.loc[i,"ordersInBatch"]) & set(orderToCover))]
         batchInfo["numberOfBatchCovered"] = value
         
-        # Preliminary criteria - batch has to cover at least 1 order
-        nextBatch = batchInfo.query("numberOfBatchCovered > 0")
+        # # Preliminary criteria 1 - batch has to cover at least 1 order
+        # nextBatch = batchInfo.query("numberOfBatchCovered > 0")
         # print("Preliminary criteria - batch has to cover at least 1 order:")
         # print(nextBatch)
         
+        # Preliminary criteria 2 - batch is a subset of orderToCover (to avoid
+        # a batch being covered more than once)
+        nextBatch = copy.deepcopy(batchInfo)
+        for i in nextBatch.index:
+            canCover = nextBatch.loc[i].ordersInBatch
+            if all([compare in orderToCover for compare in canCover]) == False:
+                nextBatch = nextBatch.drop(i)
+        print("Prelim: Batch in a subset of orderToCover")
+        print(nextBatch)    
+        
         # Greedy criteria 1 - subset of batches with minimum distance travelled
         nextBatch = nextBatch.query("distance == distance.min()")
-        # print("Min dist criteria (greedy):")
-        # print(nextBatch)
+        print("Min dist criteria (greedy):")
+        print(nextBatch)
         
         # Greedy criteria 2 - subset of batches with maximum number of orders covered
         nextBatch = nextBatch.query("numberOfBatchCovered == numberOfBatchCovered.max()")
-        # print("Max cover criteria:")
-        # print(nextBatch)
+        print("Max cover criteria:")
+        print(nextBatch)
         
         # From that subset, randomly pick a batch and append it to the final result
         random = rd.randint(0,len(nextBatch)-1)
         nextBatch = dict(nextBatch.iloc[random,:])
-        # print("Choose random:")
-        # print(nextBatch)
+        print("Choose random:")
+        print(nextBatch)
         greedyBatch.append(nextBatch)
         
         # Delete already covered orders out of orderToCover list
@@ -257,7 +271,7 @@ def F_greedyHeuristic(batchFromStation, packingStation):
         # Delete the already chosen batch out of the batch list
         batchToDelete = nextBatch["batchID"]
         batchInfo = batchInfo[batchInfo["batchID"] != batchToDelete]
-    
+        
     greedyBatch = pd.DataFrame(greedyBatch)
     return(greedyBatch)
 
