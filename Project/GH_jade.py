@@ -269,7 +269,7 @@ def F_greedyHeuristic(batchFromStation, packingStation):
     return(greedyBatch)
 
 #%% F_greedyHeuristicTry(batchInfo): added by Jade
-def F_greedyHeuristicTry(batchFromStation, packingStation):
+def F_greedyHeuristic_JadeTest(batchFromStation, packingStation):
     
     # Initialize
     greedyBatch = []
@@ -345,48 +345,19 @@ def F_greedyHeuristicTry(batchFromStation, packingStation):
         # Delete the already chosen batch out of the batch list
         batchToDelete = nextBatch["batchID"]
         #print("Delete: !!!!!!!!!!")
-        #print(batchToDelete)
+        print(batchToDelete)
         batchInfo = batchInfo[batchInfo["batchID"] != batchToDelete]
         
     
     greedyBatch = pd.DataFrame(greedyBatch)
     #print(greedyBatch)
     return(greedyBatch)
-  
-        
-        
 
+#greedyStation0_test = F_greedyHeuristic_JadeTest(batchFromStation, packingStation = "OutD0")
+  
 #%% MAIN SCRIPT
 # Source Xie's code (assuming the right working directory)
 #from instance_demo import *
-    
-# Set control knobs
-# Specify the number of orders we receive (either 10 or 20)
-orderAmount = 10
-
-# Specify the number of items in the warehouse (either 24 or 360)
-itemAmount = 24
-
-# From all orders, assign them to the optimal packing station:
-# I use option "lite" here to get two list of orders for two packing station, as
-# input for the next function. To see information of the orders, use option "full"
-station = F_assignOrderToStation(10, "lite")
-
-# For each station, create feasible batches from the orders, which also includes
-# the sequence of pods visited for the cobot, as well as the minimum distance
-# travelled for that batch.
-batchFromStation = []
-
-for i in range(len(station)):
-    stationCopy = copy.deepcopy(station)
-    packingStation = list(stationCopy.keys())[i]
-    listOfOrders = list(stationCopy.values())[i]
-    batchFromStation.append({"station":packingStation, "batchInfo":F_orderToBatch(listOfOrders, packingStation)})
-del stationCop
-#%% MAIN SCRIPT
-# Source Xie's code (assuming the right working directory)
-
-from instance_demo import *
     
 # Set control knobs
 # Specify the number of orders we receive (either 10 or 20)
@@ -414,67 +385,204 @@ del stationCopy
 
 #%%
 # Final greedy result for each of the station
-
-#greedyStation0_try = F_greedyHeuristicTry(batchFromStation, packingStation = "OutD0")
 greedyStation0 = F_greedyHeuristic(batchFromStation, packingStation = "OutD0")
-#greedyStation1 = F_greedyHeuristic(batchFromStation, packingStation = "OutD1")
-
+greedyStation1 = F_greedyHeuristic(batchFromStation, packingStation = "OutD1")
 
 #%% Jade_added for randdom Neibour (algorithm 4 in overleaf)
 
-def F_randomNeibour(batchSolution):
+def F_randomDelSol(batchSolution):
     #batchSolution = F_greedyHeuristicTry(batchFromStation, packingStation)
-   
+    print("           ")
+    
+    print("Original Solution: ")
     print(batchSolution)
     batchList = batchSolution["batchID"] #pd.Series
-    print(batchList)
-
-    print("Numbers of batches to be removed: ")
-    n = rd.randint(1,len(batchList)-1) 
-    print(n)
+    #print(batchList)
+    print("           ")
     
-    #print("The removed id(s) : ")
+    n = rd.randint(2,len(batchList)-1) 
+    print("Numbers of batches to be removed: "+str(n))
+    
     idRemoved= rd.sample(range(0,len(batchList)),n) #list
-    #print(idRemoved)
+    #print("The removed id(s) : "+str(idRemoved))
+    del(n)
+    batchRemoved=[]
+    for i in idRemoved: batchRemoved.append(batchList[i])
+    print("The removed batchID(s): "+str(batchRemoved))
     
-    print("The removed batchID(s): ")
-    
-    batchIDRemoved=[]
-    for i in idRemoved:
-       batchIDRemoved.append(batchList[i])
-    
-    print(batchIDRemoved)
-    
-    print("The removed order(s): ")
     ordersRemoved=[]
     for i in idRemoved:
         order = batchSolution.iloc[i].ordersInBatch
-        ordersRemoved.append(set(order))
-    print(ordersRemoved)
+        ordersRemoved.append(list(order))
+    print("The removed order(s): "+str(ordersRemoved))
+    print("           ")
     
-    print("The remaining batchSolution: ")
-    for i in batchIDRemoved: 
+    for i in batchRemoved: 
         batchSolution = batchSolution[batchSolution["batchID"] != i]
+    print("The remaining batches in original solution: ")
     print(batchSolution)
     
-    # Wait for another algorithm to replace the following
-        #batchesNew = randomNewBatch(ordersRemoved)
+    # Algorithm to repair the removed orders with random batchtes
+        #batchesNew = F_randomPickBatch(ordersRemoved)
         #batchSolutionNew = batchSolutionLeft + batchesNew
         #return(batchSolutionNew)
 
     # The following is for demonstration purpose, pretending that there are 2 added orders 
-    batchesNewPretend = pd.DataFrame({'batchID':[30,50],'ordersInBatch':[[30,30],[50]]})                                 
-    batchSolutionPretend = batchSolution[["batchID","ordersInBatch"]].append(batchesNewPretend, ignore_index=True)
-    print("The new batchSolution: ")
-    print(batchSolutionPretend)
+    #batchesNewPretend = pd.DataFrame({'batchID':[30,50],'ordersInBatch':[[30,30],[50]]})                                 
+    #batchSolutionPretend = batchSolution[["batchID","ordersInBatch"]].append(batchesNewPretend, ignore_index=True)
+    #print("The new batchSolution: ")
+    #print(batchSolutionPretend)
     
-    return(batchSolutionPretend)
-
+    #return([ordersRemoved,batchSolutionPretend])
     
-# results of random neibour
-randomNeibour0 = F_randomNeibour(greedyStation0)
-randomNeibour1 = F_randomNeibour(greedyStation1)
+    return([batchRemoved,ordersRemoved, batchSolution])
 
+#%%
+def F_elementsOfList(removedOrders):
+    OrderList = [] 
+    for removedBatch in removedOrders:
+        for order in removedBatch:
+            OrderList.append(order)
+    return(OrderList)
 
+#%% 
+def F_randomPickBatch(batchFromStation,packingStation,removedOrderList):
+    batchList = []
+    pickedBatch = []
+    pickedOrder = []
+    batchFromStationCopy = copy.deepcopy(batchFromStation)
+    
+    removedOrderList = F_elementsOfList(removedOrderList)
+    print("removedOrder(s) : "+str(removedOrderList))
+    
+    batchInfo = [batch['batchInfo'] for batch in batchFromStationCopy if batch['station'] == packingStation]
+    batchInfo = batchInfo[0]  #list becomes a pandas dataframe
+    #print("batchInfo is:")
+    #print(batchInfo)
+    print("               ")
+  ############################################################################################################
+    print("----- Check all feasible batches for those with removed orders(=find possible neibour) -----") 
+    for i in list(batchInfo.index):    
+        ordersToCheck = batchInfo.loc[i,"ordersInBatch"] 
+        print("For batchID "+str(i)+str(", ordersToCheck is : ")+str(ordersToCheck))
+        union = set(list(set(ordersToCheck).union(removedOrderList)))
+        diff = union.difference(set(removedOrderList))
+        if not diff: 
+            print("batchID "+str(i)+str(" has order(s)")+str(ordersToCheck)+
+                  str(", so is added into Neibours"))
+            batchList=[*batchList,i]
+        else: print("batchID "+str(i)+str(" is removed"))
+    print("----------- Finish checking all feasible batches -------------") 
+    print("All possible neibours: "+str(batchList))
+    print("               ")
+  ############################################################################################################  
+    print("---------- Check in all neibours to build new solution ------------") 
+    j=0
+    while batchList !=[]: 
+    #while i <len(batchList):
+    #for i in range(len(batchList)):
+        j=j+1
+        print("               ")
+        print("--- Round "+str(j)+" to pick batches to repair removed orders ---")
+        batch = rd.sample(batchList,1) 
+        for i in batch: batchInt = int(i)
+        print("pickedBatch is: "+str(batch))
+    
+        order = batchInfo.loc[batchInt,"ordersInBatch"]
+        print("pickedOrder is: " +str(order))
+        
+        pickedBatch += batch 
+        pickedOrder += order 
+        
+        i=0
+        while i < len(batchList):
+        #for i in range(len(batchList)):
+            print("Check batch :"+str(batchList[i]))
+            checkOrder = batchInfo.loc[batchList[i],"ordersInBatch"]
+            intersect = [value for value in checkOrder if value in order]
+            #lst3 = [value for value in lst1 if value in lst2]
+            
+            if intersect != []:
+                print("Batch "+ str(batchList[i])+" has the same order(s) "+str(intersect)+" as in batch "+str(batch))
+                print("delete batch "+ str(batchList[i])+" from Neibours")
+                batchList.remove(batchList[i])
+                print("What is left in Neibours :")
+                print(batchList)
+                #print(i)
+            else: 
+                print("Batch "+ str(batchList[i])+" stays in the neibours")
+                i+=1
+    
+        print("*** new solution after round "+str(j)+" : ***")
+        print("pickedBatch: "+str(pickedBatch))
+        print("pickedOrder: "+str(pickedOrder))
+    print("               ")
+   
+    print("There is nothing in neibour to be picked from.")
+    print("---------- Finish building new solution ------------")
+   ########################################################################################################### 
+    print("               ")
+    print("All info of the picked batch(es) to repair deleted batch(es): ")
+    
+    pickedBatchInfo = pd.DataFrame()
+    for i in range(len(pickedBatch)): 
+        info = batchInfo[batchInfo["batchID"] == pickedBatch[i]]
+        #print(info)
+        pickedBatchInfo = pickedBatchInfo.append(info,sort=False)
+    print(pickedBatchInfo)
+    print("               ")
+    
+  ############################################################################################################    
+    print("---------- Check if new solution repairs all removed orders ------------")
+    print("removedOrder(s) : "+str(removedOrderList))
+    print("pickedOrder(s)  : "+str(pickedOrder))
+    print("    ")
+    
+    return([pickedBatch, pickedOrder, pickedBatchInfo]) 
+
+#%%
+def F_newSol(oriSol, removedBatch, removedOrder, remainSol, pickedBatch, pickedOrder, pickedBatchInfo):    
+    print("    ")
+    print("---------- Check removed & repaired batches and orders ------------")
+    
+    print("   ")
+    print("Ｏriginal solution: ")
+    print(oriSol)
+    
+    print("   ")
+    print("removedBatch: "+str(removedBatch))
+    print("removedOrder: "+str(removedOrder))
+    
+    print("   ")
+    print("remain batch(es): ")
+    print(remainSol)
+    
+    print("   ")
+    print("pickedBatch: "+str(pickedBatch))
+    print("pickedOrder: "+str(pickedOrder))
+    
+    print("   ")
+    print("New solution: ")
+    newSol=remainSol.append(pickedBatchInfo)
+    print(newSol)
+    return("New solution")
+    
+#%%
+
+# results of delete and repair from random neibour
+
+removedBatch0, removedOrder0, remainSol0  = F_randomDelSol(greedyStation0)
+pickedBatch0, pickedOrder0,pickedBatchInfo0 = F_randomPickBatch(batchFromStation, "OutD0",removedOrder0)   
+F_newSol(greedyStation0, removedBatch0, removedOrder0, remainSol0, pickedBatch0, pickedOrder0, pickedBatchInfo0)
+
+removedBatch1, removedOrder1, remainSol1  = F_randomDelSol(greedyStation1) 
+pickedBatch1, pickedOrder1, pickedBatchInfo1 = F_randomPickBatch(batchFromStation, "OutD1",removedOrder1)    
+F_newSol(greedyStation1,removedBatch1, removedOrder1, remainSol1, pickedBatch1, pickedOrder1, pickedBatchInfo1)   
+    
+    
+    
+    
+    
+    
 
 
