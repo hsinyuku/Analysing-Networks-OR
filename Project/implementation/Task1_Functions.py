@@ -1,26 +1,54 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Aug 18 23:05:37 2020
-
-@author: 93cha
-"""
-
-
-# -*- coding: utf-8 -*-
-"""
 Created on Tue Aug 11 13:54:23 2020
 
 @author: 93cha
 """
 
+# Functions rely on the script instance_demo.py to be sources, as this script 
+# generates the object warehouseInstance that contains all relevant information
+# about the project
+
+#%% import libraries
 import xml.etree.ElementTree as ET
 import pandas as pd
 import copy
 import numpy as np
 import random as rd
 
-#%% 
+#%% F_itemInfo
+def F_itemInfo(itemID):
+    """ Return a dictionary with information about the item specified by itemID.
+    Function relies on warehouseInstance to be loaded.
+
+    Parameters
+    ----------
+    itemID : int
+
+    Returns
+    -------
+    Dictionary contains ID, Type, Weight, Letter, Color and Description.
+
+    """
+    item = warehouseInstance.ItemDescriptions[str(itemID)].__dict__
+    itemDesc = item["Color"] + "/" + item["Letter"]
+    item["Description"] = itemDesc
+    return(item)
+    
+#%% F_orderInfo
 def F_orderInfo(orderID):
+    """Returns a list of dictionaries with information about an order specified
+    by orderID. Function relies on warehouseInstance to be loaded.
+    
+    Parameters
+    ----------
+    orderID : int
+
+    Returns
+    -------
+    List contains one dictionary for each itemID in the specified order, with
+    respective weight and count of items for each itemID.
+    """
     itemList = []
     for itemID in warehouseInstance.Orders[orderID].Positions.keys():
         weight = F_itemInfo(itemID)["Weight"]
@@ -29,49 +57,83 @@ def F_orderInfo(orderID):
         itemList.append(item)
     return(itemList)
 
-#%% F_itemInfo
-def F_itemInfo(itemID):
-    item = warehouseInstance.ItemDescriptions[str(itemID)].__dict__
-    itemDesc = item["Color"] + "/" + item["Letter"]
-    item["Description"] = itemDesc
-    return(item)
-    
 #%% F_itemsInOrder
 def F_itemsInOrder(orderID):
+    """For a specified orderID, returns a list of integers. Each integer is an
+    item in the order.
+    POTENTIALLY A DUPLICATE
+
+    Parameters
+    ----------
+    orderID : int
+
+    Returns
+    -------
+    List of integers.
+
+    """
     items = [*warehouseInstance.Orders[orderID].Positions]
     items = [int(i) for i in items]
     return(items)
 
-#%% 
-def F_itemsInBatch(batchList):
-    itemList = []
-    for orderID in batchList:
-        items = F_itemsInOrder(orderID)
-        itemList = list(set(itemList) | set(items))
-    return(itemList)
-
 #%% F_weightOfOrder
 def F_weightOfOrder(orderID):
-    totalWeight = 0
-    orderInfo = F_orderInfo(orderID)
-    
-    for item in orderInfo:
-        totalWeight += item["Weight"] * item["Count"]
-    return(round(totalWeight, 2))
+    """For a given orderID, calculates the total weight of all items in the
+    order.
+
+    Parameters
+    ----------
+    orderID : int
+
+    Returns
+    -------
+    Float.
+
+    """
+    return(round(sum([dict["Weight"]*dict["Count"] for dict in F_orderInfo(1)]), 2))
 
 #%% F_weightOfBatch
 def F_weightOfOrdersInBatch(orderList):
-    totalWeight = 0
-    for order in orderList:
-        totalWeight += F_weightOfOrder(order)
-    return(totalWeight)
+    """
+    For a given list of orders (as orderIDs), calculates the total weight of 
+    all items in all orders in the list.
+
+    Parameters
+    ----------
+    orderList : list of int
+
+    Returns
+    -------
+    float
+
+    """
+    
+    #totalWeight = 0
+    #for order in orderList:
+    #    totalWeight += F_weightOfOrder(order)
+    # return(totalWeight)
+    return(sum([F_weightOfOrder(orderID) for orderID in orderList]))
 
 #%%
 def F_createDistMat():
+    """For each station in the warehouse, creates one DataFrame in the global
+    environment that contains the distance from the station to each pod and 
+    all other stations.
+    
+    Requires
+    --------
+    distance_ij from the script instance_demo.py must have been loaded.
+
+    Returns
+    -------
+    None; instead directly writes in the global environment.
+
+    """
     global distToStation0
     global distToStation1
     global distMat
     
+    # What does this do?
     stopAmount = int(np.sqrt(len(distance_ij)))
     distMat = np.array(list(distance_ij.values())).reshape(stopAmount, stopAmount)
     
@@ -91,15 +153,50 @@ def F_createDistMat():
     distToStation1 = distMat[["OutD1"]]
     distMat = distMat.drop(["OutD0","OutD1"], axis = 1) 
 
+#%% LUKAS: understood until here
+
+#%% 
+def F_itemsInBatch(batchList): 
+    """???
+
+    Parameters
+    ----------
+    batchList : ???
+
+    Returns
+    -------
+    ???
+
+    """
+    itemList = []
+    for orderID in batchList:
+        items = F_itemsInOrder(orderID)
+        itemList = list(set(itemList) | set(items))
+    return(itemList)
+
 #%% F_minDistance
-def F_minDist(nodesOfPods, packingStation):
-    
+def F_minDist(items, packingStation):
+    """For a given list of items and a packing station, returns the shortest
+    possible route of pods and stations, where each item is contained in one 
+    of the pods.
+
+    Parameters
+    ----------
+    items : List of int; itemIDs in a list, usually within one order.
+    packingStation : String. Stations names have the form of OutDX, where X is
+    an integer representing the station number.
+
+    Returns
+    -------
+    None.
+
+    """
     # Call for distance matrix
     F_createDistMat()    
     
     # Create destructive copy of nodesOfPods, so that each
     # node can be removed later
-    currentBatch = nodesOfPods.copy()
+    currentBatch = items.copy()
     
     # First node of route is the chosen packing station
     route = [packingStation] 
@@ -107,7 +204,7 @@ def F_minDist(nodesOfPods, packingStation):
     # Initialize distance
     totalDist = 0
 
-    for i in range(len(nodesOfPods)):
+    for i in range(len(items)):
         
         dist = distMat.loc[route[i],currentBatch].to_frame()
         # print("Compare distances:")
@@ -139,6 +236,20 @@ def F_minDist(nodesOfPods, packingStation):
 
 #%% F_assignOrderToStation
 def F_assignOrderToStation(orderAmount, type = "full"):
+    """
+    
+
+    Parameters
+    ----------
+    orderAmount : ???
+    type : TYPE, optional
+        DESCRIPTION. The default is "full".
+
+    Returns
+    -------
+    None.
+
+    """
     
     station = {"OutD0":[],
                "OutD1":[]}
@@ -275,33 +386,6 @@ def F_greedyHeuristic(batchFromStation, packingStation):
     greedyBatch = pd.DataFrame(greedyBatch)
     return(greedyBatch)
 
-#%% MAIN SCRIPT
-# Source Xie's code (assuming the right working directory)
-from instance_demo import *
-    
-# Set control knobs
-# Specify the number of orders we receive (either 10 or 20)
-orderAmount = 10
-
-# Specify the number of items in the warehouse (either 24 or 360)
-itemAmount = 24
-
-# From all orders, assign them to the optimal packing station:
-# I use option "lite" here to get two list of orders for two packing station, as
-# input for the next function. To see information of the orders, use option "full"
-station = F_assignOrderToStation(10, "lite")
-
-# For each station, create feasible batches from the orders, which also includes
-# the sequence of pods visited for the cobot, as well as the minimum distance
-# travelled for that batch.
-batchFromStation = []
-
-for i in range(len(station)):
-    stationCopy = copy.deepcopy(station)
-    packingStation = list(stationCopy.keys())[i]
-    listOfOrders = list(stationCopy.values())[i]
-    batchFromStation.append({"station":packingStation, "batchInfo":F_orderToBatch(listOfOrders, packingStation)})
-del stationCopy
 
 #%%
 # Final result for each of the station
@@ -438,7 +522,7 @@ def F_randomPickBatch(batchFromStation,packingStation,removedOrderList):
         print("pickedOrder: "+str(pickedOrder))
     print("               ")
    
-    print("There is nothing in neibour to be picked from.")
+    print("There is nothing in neighbour to be picked from.")
     print("---------- Finish building new solution ------------")
    ########################################################################################################### 
     print("               ")
