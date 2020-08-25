@@ -39,7 +39,7 @@ def F_itemInfo(itemID):
 def F_orderInfo(orderID):
     """Returns a list of dictionaries with information about an order specified
     by orderID. Function relies on warehouseInstance to be loaded.
-    
+
     Parameters
     ----------
     orderID : int
@@ -90,7 +90,7 @@ def F_weightOfOrder(orderID):
     Float.
 
     """
-    return(round(sum([dict["Weight"]*dict["Count"] for dict in F_orderInfo(1)]), 2))
+    return(round(sum([dict["Weight"]*dict["Count"] for dict in F_orderInfo(orderID)]), 2))
 
 #%% F_weightOfBatch
 def F_weightOfOrdersInBatch(orderList):
@@ -132,10 +132,12 @@ def F_createDistMat():
     global distToStation0
     global distToStation1
     global distMat
-    
+
     # What does this do?
     stopAmount = int(np.sqrt(len(distance_ij)))
+        # StopAmount is the number of elements in the matrix (number of rows)
     distMat = np.array(list(distance_ij.values())).reshape(stopAmount, stopAmount)
+        # reshape distance_ij from a 1d-array to a 2d-matrix
     
     # Convert to pandas DataFrame
     distMat = pd.DataFrame(distMat)
@@ -154,6 +156,7 @@ def F_createDistMat():
     distMat = distMat.drop(["OutD0","OutD1"], axis = 1) 
 
 #%% LUKAS: understood until here
+    
 
 #%% 
 def F_itemsInBatch(batchList): 
@@ -161,7 +164,7 @@ def F_itemsInBatch(batchList):
 
     Parameters
     ----------
-    batchList : ???
+    batchList : List of 
 
     Returns
     -------
@@ -175,6 +178,8 @@ def F_itemsInBatch(batchList):
     return(itemList)
 
 #%% F_minDistance
+    # Comment from Lukas: did not yet fully check the function, but I did 
+    # understand its basic functionality.
 def F_minDist(items, packingStation):
     """For a given list of items and a packing station, returns the shortest
     possible route of pods and stations, where each item is contained in one 
@@ -235,13 +240,15 @@ def F_minDist(items, packingStation):
     return({"route":route, "distance": totalDist})
 
 #%% F_assignOrderToStation
+    # Comment from Lukas: did not yet fully check the function, but I did 
+    # understand its basic functionality.
 def F_assignOrderToStation(orderAmount, type = "full"):
-    """
+    """ ???
     
-
     Parameters
     ----------
-    orderAmount : ???
+    orderAmount : int
+        Number of orders, has to be specified externally. 
     type : TYPE, optional
         DESCRIPTION. The default is "full".
 
@@ -276,8 +283,23 @@ def F_assignOrderToStation(orderAmount, type = "full"):
             else: 
                 station["OutD1"].append(orderID)
     return(station)
+
 #%%
 def F_orderToBatch(listOfOrders, packingStation):
+    """ 
+
+    Parameters
+    ----------
+    listOfOrders : TYPE
+        DESCRIPTION.
+    packingStation : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
     batch = []
     batch.append([listOfOrders.pop(0)])
     
@@ -387,14 +409,21 @@ def F_greedyHeuristic(batchFromStation, packingStation):
     return(greedyBatch)
 
 
-#%%
-# Final result for each of the station
-greedyStation0 = F_greedyHeuristic(batchFromStation, packingStation = "OutD0")
-greedyStation1 = F_greedyHeuristic(batchFromStation, packingStation = "OutD1")
-
 #%% Jade_added (All above this section is written by Chan)
 
 def F_randomDelSol(batchSolution):
+    """Deletes random batches from a given solution.
+
+    Parameters
+    ----------
+    batchSolution : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
     #batchSolution = F_greedyHeuristicTry(batchFromStation, packingStation)
     print("           ")
     
@@ -443,6 +472,18 @@ def F_randomDelSol(batchSolution):
 
 #%%
 def F_elementsOfList(removedOrders):
+    """Extract orders from batches into one single list.
+
+    Parameters
+    ----------
+    removedOrders : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
     OrderList = [] 
     for removedBatch in removedOrders:
         for order in removedBatch:
@@ -451,6 +492,23 @@ def F_elementsOfList(removedOrders):
 
 #%% 
 def F_randomPickBatch(batchFromStation,packingStation,removedOrderList):
+    """After deleting batches, pick from feasible batches to repair the
+    removed orders.
+
+    Parameters
+    ----------
+    batchFromStation : TYPE
+        DESCRIPTION.
+    packingStation : TYPE
+        DESCRIPTION.
+    removedOrderList : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
     batchList = []
     pickedBatch = []
     pickedOrder = []
@@ -545,7 +603,33 @@ def F_randomPickBatch(batchFromStation,packingStation,removedOrderList):
     return([pickedBatch, pickedOrder, pickedBatchInfo]) 
 
 #%%
-def F_newSol(oriSol, removedBatch, removedOrder, remainSol, pickedBatch, pickedOrder, pickedBatchInfo):    
+def F_newSol(oriSol, removedBatch, removedOrder, remainSol, pickedBatch, pickedOrder, pickedBatchInfo):
+    """
+    Combine the original batch, from which some batches have been removed, 
+    with the repaired batches, to make a new solution.
+
+    Parameters
+    ----------
+    oriSol : TYPE
+        DESCRIPTION.
+    removedBatch : TYPE
+        DESCRIPTION.
+    removedOrder : TYPE
+        DESCRIPTION.
+    remainSol : TYPE
+        DESCRIPTION.
+    pickedBatch : TYPE
+        DESCRIPTION.
+    pickedOrder : TYPE
+        DESCRIPTION.
+    pickedBatchInfo : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
     print("    ")
     print("---------- Check removed & repaired batches and orders ------------")
     
@@ -573,12 +657,3 @@ def F_newSol(oriSol, removedBatch, removedOrder, remainSol, pickedBatch, pickedO
     
 #%%
 
-# results of delete and repair from random neibour
-
-removedBatch0, removedOrder0, remainSol0  = F_randomDelSol(greedyStation0)
-pickedBatch0, pickedOrder0,pickedBatchInfo0 = F_randomPickBatch(batchFromStation, "OutD0",removedOrder0)   
-F_newSol(greedyStation0, removedBatch0, removedOrder0, remainSol0, pickedBatch0, pickedOrder0, pickedBatchInfo0)
-
-removedBatch1, removedOrder1, remainSol1  = F_randomDelSol(greedyStation1) 
-pickedBatch1, pickedOrder1, pickedBatchInfo1 = F_randomPickBatch(batchFromStation, "OutD1",removedOrder1)    
-F_newSol(greedyStation1,removedBatch1, removedOrder1, remainSol1, pickedBatch1, pickedOrder1, pickedBatchInfo1)   
