@@ -15,6 +15,7 @@ import pandas as pd
 import copy
 import numpy as np
 import random as rd
+from instance_demo import * # Sourcing provided code, assuming right working directory
 
 #%% F_itemInfo
 def F_itemInfo(itemID):
@@ -286,35 +287,38 @@ def F_assignOrderToStation(orderAmount, type = "full"):
 
 #%%
 def F_orderToBatch(listOfOrders, packingStation):
-    """ 
+    """ For a given sset of orders, returns a list of all feasible batches that
+    can be generated using these orders.
 
     Parameters
     ----------
-    listOfOrders : TYPE
-        DESCRIPTION.
-    packingStation : TYPE
-        DESCRIPTION.
+    listOfOrders : list
+        List of orders, represented as a list of integers.
+    packingStation : string
+        String that specifies which station the orders belong to.
 
     Returns
     -------
-    None.
-
+    A DataFrame with the columns batchID (integer identifying a batch), 
+    ordersInBatch (list of integers representing orders that are in the batch),
+    routeInBatch (list of integers representing the pods that are visited 
+    in the batch), distance (float representing distance travelled in the
+    batch) and weight (float, cumulative weight of all items in the batch).
     """
-    batch = []
-    batch.append([listOfOrders.pop(0)])
+    batch = [] # initialise list of feasible batches as empty list
+    batch.append([listOfOrders.pop(0)]) # add the first order to the batch,
+        # remove the first order from the list of orders
     
     while (listOfOrders != []):
-        batchCopy = copy.deepcopy(batch)  
-        # print("batchCopy")
-        # print(batchCopy)
+        # make a copy of the list of batches
+        batchCopy = copy.deepcopy(batch) 
+        
+        # pick the next order from the list orders, remove this order from the 
+        # list of orders
         nextOrder = [listOfOrders.pop(0)]
-        # print("Next order")
-        # print(nextOrder)
         
         # Add nextOrder to each of the batches in batchCopy to create new batches
         batchCopy = [b + nextOrder for b in batchCopy]
-        # print("batchCopy + nextOrder")
-        # print(batchCopy)
         
         # Check weight capacity constraint of newly created batches
         batchCopy = [b for b in batchCopy if F_weightOfOrdersInBatch(b) <= batch_weight]
@@ -324,11 +328,13 @@ def F_orderToBatch(listOfOrders, packingStation):
         
         # Append new feasible batches in batchCopy to batch
         batch = batch + batchCopy
-        # print("Batch now")
-        # print(batch)   
     
+    # initialise a new list to store data about the batches
     batchInfo = []    
     batchID = 0
+    # for each batch, generate a batchID, extract the orders in the batch, the 
+    # route taken to travel the batch, the distance travelled, and the total 
+    # weight of all items in the batch
     for b in batch:
         item = F_itemsInBatch(b)
         dist = F_minDist(item, packingStation)["distance"]

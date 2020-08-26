@@ -27,13 +27,13 @@ batchFromStation = []
 
 for i in range(len(station)):
     stationCopy = copy.deepcopy(station)
-    packingStation = list(stationCopy.keys())[i]
         # calls the name of the packing station
-    listOfOrders = list(stationCopy.values())[i]
+    packingStation = list(stationCopy.keys())[i]
         # calls the orders that belong to that station
-    batchFromStation.append({"station":packingStation, "batchInfo":F_orderToBatch(listOfOrders, packingStation)})
+    listOfOrders = list(stationCopy.values())[i]
         # assign orders from list of orders to batches, procuding all feasible
         # batches for each station
+    batchFromStation.append({"station":packingStation, "batchInfo":F_orderToBatch(listOfOrders, packingStation)})
 del stationCopy
 #%%
 
