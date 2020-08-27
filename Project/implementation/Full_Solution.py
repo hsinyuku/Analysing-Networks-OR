@@ -1,5 +1,4 @@
-# example to use
-
+#%% A) copied from instance_demo
 
 #%% Importing libraries
 #import numpy as np
@@ -169,5 +168,4 @@ def initData(self):
     d_ij = warehouse_data_processing.CalculateDistance()
     return d_ij
 
-
-
+#%% 
