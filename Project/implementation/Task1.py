@@ -830,30 +830,31 @@ item_id_pod_id_dict = {}
 
 distance_ij = demo.WarehouseDateProcessing(warehouseInstance).CalculateDistance()
 
-#%% assigning orders to stations
+#%% getting data
 
-#------------------------------------------------------
 # getting data about which items are in which pods, building a dictionary that is easier to read
 podInfoDict = {int(pod):[{"Description":item.ID, "Count":int(item.Count)} for item in warehouseInstance.Pods[pod].Items] for pod in warehouseInstance.Pods}
 
-# ------------------------------------------------------
 # getting data about the items
 itemsInfoDict = [{"ID":int(warehouseInstance.ItemDescriptions[SKU].ID), "Description":warehouseInstance.ItemDescriptions[SKU].Color + "/" + warehouseInstance.ItemDescriptions[SKU].Letter, "Weight":warehouseInstance.ItemDescriptions[SKU].Weight} for SKU in warehouseInstance.ItemDescriptions]
 
-# ------------------------------------------------------
 # getting data about orders
 orderInfoDict = {order:[{"itemID":int(position), "quantity":int(warehouseInstance.Orders[order].Positions[position].Count)} for position in warehouseInstance.Orders[order].Positions] for order in range(0, len(warehouseInstance.Orders))}
 
-#%%
-# replacing item description in podInfoDict with item ID
+# getting data about packing stations
+packingStationNames = list(warehouseInstance.OutputStations.keys())
+
+#%% replacing item description in podInfoDict with item ID
 # getting an item ID for an item description
 for pod in podInfoDict.keys():
     for podItem in podInfoDict[pod]:
         podItem["ID"] = [item["ID"] for item in itemsInfoDict if item["Description"] == podItem["Description"]][0]
 
+
 #%% converting data to DataFrames, where it helps
 for pod in podInfoDict:
     podInfoDict[pod] = pd.DataFrame(podInfoDict[pod]).set_index("ID")
+#%%
 
 for order in orderInfoDict:
     orderInfoDict[order] = pd.DataFrame(orderInfoDict[order]).set_index("itemID")
@@ -862,5 +863,92 @@ itemsInfoDict = pd.DataFrame(itemsInfoDict).set_index("ID")
 #%%
 # -----------------------------------------------------
 # greedy heuristic to determine the route with which to fulfil an order, and its fitness value
+# pick an order
+order = copy.deepcopy(orderInfoDict[0])
+# pick a station
+station = packingStationNames[0]
+podCopy = copy.deepcopy(podInfoDict)
 
+def F_fitnessValueOrderToStation(order, station, podCopy):
+    """For a given station and order, returns the fitness value of that order. Currently, the fitness order is the distance travelled to fulfil the order.
+    The distance is calculated greedily: for all items in the order, the algorithm looks for the nearest pod that contains any of the items and chooses to visit it. From this pod, it tries to pick as many items as possible.
 
+    Parameters
+    ----------
+    order : 
+        typically a deep copy of .orderInfoDict
+    station : TYPE
+        one of packingStationNames
+    podInfo : TYPE
+        typically a deep copy of podInfoDict.
+
+    Returns
+    -------
+    None.
+
+    """
+    # get a path
+    route = [station]
+    routeInfo = {}
+    # set the distance of the path to 0
+    distance = {}
+    # iterate over the order and go to the next pod as long as there are items left 
+    # in the order
+    while order.shape[0] != 0:
+        # find the nearest pod that contains at least one item of the SKU
+        possiblePodsDistances = []
+        # for each SKU, find the nearest pod that contains at least one item of that SKU
+        for SKU in order.index:
+            # find all pods that contain at least one item of the SKU and get the minimum
+            # distance to any of them
+            #print("---- SKU ----")
+            #print(SKU)
+            SKUNearestPod = {}
+            for podID, items in podCopy.items():
+                if SKU in items.index:
+                    #print("-- podID: " + str(podID) +" --")
+                    #print(items)
+                    #print("--distance: " + str(round(distance_ij[(str(route[-1]), str(podID))], 1)))
+                    SKUNearestPod[podID] = round(distance_ij[(str(route[-1]), str(podID))], 1)
+            #print(min(SKUNearestPod))
+            #print(SKUNearestPod[min(SKUNearestPod)])
+            possiblePodsDistances.append({"itemID":SKU,
+                                          "pod":min(SKUNearestPod),
+                                          "distance":SKUNearestPod[min(SKUNearestPod)]})
+            #possiblePodsDistances[SKU] = minDist
+        # for all SKUs, find the one whose nearest pod is nearest to the current position
+        possiblePodsDistances = pd.DataFrame(possiblePodsDistances)
+        nextSKU = possiblePodsDistances[possiblePodsDistances.distance == possiblePodsDistances.distance.min()]
+        # add the distance to the respective pod to the total path distance
+        distance[(str(route[-1]), str(int(nextSKU.pod)))] = round(float(nextSKU.distance), 1)
+        # remove all items from the order that are in the pod and the order
+        nextPod = podCopy[int(nextSKU.pod)]
+        # for each SKU in the order, check whether items of it are in the next pod
+        # first iterate over all the items in the order
+        picked = []
+        for index, row in order.iterrows():
+            # next, check if each item is in the pod
+            if index in nextPod.index:
+                # if it is in the pod, determine whether all items from the order can be
+                # picked from the pod, or whether there are more items in the pod than
+                # there are in the order
+                itemsToPick = min(row.quantity, nextPod.loc[index].Count)
+                # remove the items that could be picked from the order
+                if order.loc[index, "quantity"] == itemsToPick:
+                    order = order.drop(index)
+                else:
+                    order.loc[index, "quantity"] -= itemsToPick
+                # remove the items that could be picked from the order
+                if nextPod.loc[index, "Count"] == itemsToPick:
+                    nextPod = nextPod.drop(index)
+                else:
+                    nextPod.loc[index, "Count"] -= itemsToPick
+                print("Removed " +  str(itemsToPick) + " item(s) of SKU " + str(index) + " from the order and from pod " + str(int(nextSKU.pod)) + ".")
+                picked.append({"itemID":index, "count":itemsToPick})
+        # add the pod to the route
+        route.append(int(nextSKU.pod))
+        routeInfo[int(nextSKU.pod)]= picked
+    # add the last path of the route, from the last pod back to the station
+    distance[(str(route[-1]), station)] = round(distance_ij[(str(route[-1]), station)], 1)
+    route.append(station)
+    return({"distances travelled":distance, "route taken":route, "route information":routeInfo, "altered podInfoDict":podCopy})
