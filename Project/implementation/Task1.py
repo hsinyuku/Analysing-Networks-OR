@@ -4,7 +4,7 @@
 # C) execution of the given functions
 
 #%% sourcing scripts
-import rafs_instance
+import rafs_instance as instance
 import instance_demo as demo
 import pandas as pd
 import copy
@@ -21,6 +21,9 @@ orderAmount = 10
 
 # Specify the number of items in the warehouse (either 24 or 360)
 itemAmount = 24
+
+# SPecifiy the pod amount
+podAmount = 24
 
 # Specify the policy (either "dedicated_1" or "mixed_shevels_1-5")
 podPolicy = "dedicated_1"
@@ -63,7 +66,17 @@ distance_ij = demo.WarehouseDateProcessing(warehouseInstance).CalculateDistance(
 # generates the object warehouseInstance that contains all relevant information
 # about the project
 
-
+#%%
+def F_podInfo(podAmount):
+    infoList = []
+    for podPosition in range(0, podAmount):
+        itemInPod = warehouseInstance.Pods[str(podPosition)].Items
+        for item in itemInPod:
+            info = {"inPod":podPosition, "Description": item.ID, "itemCount": item.Count}
+            infoList.append(info)
+    infoList = pd.DataFrame(infoList)
+    return(infoList)
+        
 
 #%% F_itemInfo
 def F_itemInfo(itemID):
@@ -84,6 +97,15 @@ def F_itemInfo(itemID):
     item["Description"] = itemDesc
     return(item)
     
+#%% F_itemInfoList(itemAmount):
+def F_itemInfoList(itemAmount):
+    itemInfoList = []
+    for itemID in range(0, itemAmount):
+        itemInfoList.append(F_itemInfo(itemID))
+    itemInfoList = pd.DataFrame(itemInfoList)
+    return(itemInfoList)
+        
+
 #%% F_orderInfo
 def F_orderInfo(orderID):
     """Returns a list of dictionaries with information about an order specified
@@ -206,6 +228,12 @@ def F_createDistMat():
 
 #%% LUKAS: understood until here
     
+#%%
+def F_itemsToPodLocation(listOfItems):
+    listOfPods = []
+    for item in listOfItems:
+        listOfPods.append(itemInfoList[itemInfoList.ID == str(item)].inPod.values[0])
+    return(listOfPods)
 
 #%% 
 def F_itemsInBatch(batchList): 
@@ -229,7 +257,7 @@ def F_itemsInBatch(batchList):
 #%% F_minDistance
     # Comment from Lukas: did not yet fully check the function, but I did 
     # understand its basic functionality.
-def F_minDist(items, packingStation):
+def F_minDist(items, itemInfoList, packingStation):
     """For a given list of items and a packing station, returns the shortest
     possible route of pods and stations, where each item is contained in one 
     of the pods.
@@ -248,9 +276,12 @@ def F_minDist(items, packingStation):
     # Call for distance matrix
     F_createDistMat()    
     
+    # For the list of items, find the corresponding pod locations 
+    pods = F_itemsToPodLocation(items)
+    
     # Create destructive copy of nodesOfPods, so that each
     # node can be removed later
-    currentBatch = items.copy()
+    currentBatch = pods.copy()
     
     # First node of route is the chosen packing station
     route = [packingStation] 
@@ -291,7 +322,7 @@ def F_minDist(items, packingStation):
 #%% F_assignOrderToStation
     # Comment from Lukas: did not yet fully check the function, but I did 
     # understand its basic functionality.
-def F_assignOrderToStation(orderAmount, type = "full"):
+def F_assignOrderToStation(orderAmount, itemInfoList, type = "full"):
     """ ???
     
     Parameters
@@ -313,10 +344,10 @@ def F_assignOrderToStation(orderAmount, type = "full"):
     for orderID in range(orderAmount):
         itemsInOrder = F_itemsInOrder(orderID)
         # print("----Order " + str(count) +"----")
-        fromStation0 = F_minDist(itemsInOrder, "OutD0")
+        fromStation0 = F_minDist(itemsInOrder, itemInfoList, "OutD0")
         # print("If start at station 0:")
         # print(fromStation0)
-        fromStation1 = F_minDist(itemsInOrder, "OutD1")
+        fromStation1 = F_minDist(itemsInOrder, itemInfoList,  "OutD1")
         # print("If start at station 1:")
         # print(fromStation1)
         if type == "full":
@@ -334,7 +365,7 @@ def F_assignOrderToStation(orderAmount, type = "full"):
     return(station)
 
 #%%
-def F_orderToBatch(listOfOrders, packingStation):
+def F_orderToBatch(listOfOrders, itemInfoList, packingStation):
     """ For a given sset of orders, returns a list of all feasible batches that
     can be generated using these orders.
 
@@ -386,8 +417,8 @@ def F_orderToBatch(listOfOrders, packingStation):
     # weight of all items in the batch
     for b in batch:
         item = F_itemsInBatch(b)
-        dist = F_minDist(item, packingStation)["distance"]
-        route = F_minDist(item, packingStation)["route"]
+        dist = F_minDist(item, itemInfoList, packingStation)["distance"]
+        route = F_minDist(item, itemInfoList, packingStation)["route"]
         del route[0]
         del route[-1]
         batchInfo.append({"batchID": batchID, "ordersInBatch": b, "routeInBatch" : route, "distance": dist, "weight" : F_weightOfOrdersInBatch(b)})
@@ -397,7 +428,7 @@ def F_orderToBatch(listOfOrders, packingStation):
     return(batchInfo)
 
 #%% F_greedyHeuristic(batchInfo):
-def F_greedyHeuristic(batchFromStation, packingStation):
+def F_greedyHeuristic(batchFromStation, itemInfoList, packingStation):
     """Greedy heuristic to assign orders to batches, for an already given
     assignment of orders to stations, and for only one station.
 
@@ -770,10 +801,25 @@ def F_newSol(oriSol, removedBatch, removedOrder, remainSol, pickedBatch, pickedO
     
 
 #%% Task 1
+
+#%% Full information on items and their location in the pods
+podInfoList = F_podInfo(podAmount)
+itemInfoList = F_itemInfoList(itemAmount)
+itemInfoList = pd.merge(podInfoList, itemInfoList, how = "left", on = "Description")
+
 # From all orders, assign them to the optimal packing station:
 # I use option "lite" here to get two list of orders for two packing station, as
 # input for the next function. To see information of the orders, use option "full"
-station = F_assignOrderToStation(orderAmount, "lite")
+station = F_assignOrderToStation(orderAmount, itemInfoList, "lite")
+stationFull = F_assignOrderToStation(orderAmount, itemInfoList, "full")
+
+
+#%% Theorical scenario: SOLL
+# station = {"OutD0" : [4,5,6,7],
+#            "OutD1" : [0,1,2,3,8,9]}
+
+
+#%%
 
 # For each station, create feasible batches from the orders, which also includes
 # the sequence of pods visited for the cobot, as well as the minimum distance
@@ -788,14 +834,18 @@ for i in range(len(station)):
     listOfOrders = list(stationCopy.values())[i] 
         # assign orders from list of orders to batches, procuding all feasible
         # batches for each station
-    batchFromStation.append({"station":packingStation, "batchInfo":F_orderToBatch(listOfOrders, packingStation)})
+    batchFromStation.append({"station":packingStation, "batchInfo":F_orderToBatch(listOfOrders, itemInfoList, packingStation)})
 del stationCopy
 
+#%%
 # Final result for each of the station: for each station, take all feasible 
 # batches and run the greedy heuristic to choose the optimal sequence of 
 # batches
-greedyStation0 = F_greedyHeuristic(batchFromStation, packingStation = "OutD0")
-greedyStation1 = F_greedyHeuristic(batchFromStation, packingStation = "OutD1")
+greedyStation0 = F_greedyHeuristic(batchFromStation, itemInfoList, packingStation = "OutD0")
+greedyStation1 = F_greedyHeuristic(batchFromStation, itemInfoList, packingStation = "OutD1")
+
+
+
 
 #%% Task 2
 # results of delete and repair from random neibour
@@ -859,16 +909,16 @@ for pod in podInfoDict.keys():
     for podItem in podInfoDict[pod]:
         podItem["ID"] = [item["ID"] for item in itemsInfoDict if item["Description"] == podItem["Description"]][0]
 
-
 #%% converting data to DataFrames, where it helps
 for pod in podInfoDict:
     podInfoDict[pod] = pd.DataFrame(podInfoDict[pod]).set_index("ID")
 #%%
-
 for order in orderInfoDict:
     orderInfoDict[order] = pd.DataFrame(orderInfoDict[order]).set_index("itemID")
     
 itemsInfoDict = pd.DataFrame(itemsInfoDict).set_index("ID")
+
+
 #%%
 # -----------------------------------------------------
 # greedy heuristic to determine the route with which to fulfil an order, and its fitness value
