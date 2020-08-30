@@ -28,8 +28,6 @@ podAmount = 24
 # Specify the policy (either "dedicated_1" or "mixed_shevels_1-5")
 podPolicy = "dedicated_1"
 
-test = 'data/sku''/pods_infos.txt'
-
 #%% A) importing files and creating instances defined in instance_demo.py
 
 # not sure what this contains, but it is needed for the Warehouse-class
