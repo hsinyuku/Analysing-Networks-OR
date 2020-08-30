@@ -4,7 +4,7 @@
 # C) execution of the given functions
 
 #%% sourcing scripts
-import rafs_instance as instance
+import rafs_instance
 import instance_demo as demo
 import pandas as pd
 import copy
@@ -151,24 +151,40 @@ class Demo():
         d_ij = warehouse_data_processing.CalculateDistance()
         return d_ij
 
+#%% control knobs
+
+# SPecify mean item amount in an order (either 1x6 or 5)
+meanItemInOrder = "1x6"
+
+# Specify the number of orders we receive (either 10 or 20)
+orderAmount = 10
+
+# Specify the number of items in the warehouse (either 24 or 360)
+itemAmount = 24
+
+# Specify the policy (either "dedicated_1" or "mixed_shevels_1-5")
+podPolicy = "dedicated_1"
+
+test = 'data/sku''/pods_infos.txt'
+
 #%% A) importing files and creating instances defined in instance_demo.py
 
 # not sure what this contains, but it is needed for the Warehouse-class
 layoutFile = r'data/layout/1-1-1-2-1.xlayo' 
 # loading all the information about the pods
-podInfoFile = 'data/sku24/pods_infos.txt'   # 
+podInfoFile = 'data/sku' + str(itemAmount) + '/pods_infos.txt'   
 # loading information about picking locations, packing stations, waypoints,
 # pods 
-instanceFile = r'data/sku24/layout_sku_24_2.xml'
+instanceFile = r'data/sku' + str(itemAmount) + '/layout_sku_' + str(itemAmount) + '_2.xml'
 
 # loading information about item storage: contains all SKUs along with their
 # attributes
-storagePolicyFile = 'data/sku24/pods_items_dedicated_1.txt'
+storagePolicyFile = 'data/sku' + str(itemAmount) + '/pods_items_' + str(podPolicy) + '.txt'
 #storagePolicies['mixed'] = 'data/sku24/pods_items_mixed_shevels_1-5.txt'
 
 # loading information about the orders: contains list of orders, with number
 # of ordered items per SKU-ID
-orderFile =r'data/sku24/orders_10_mean_5_sku_24.xml'
+orderFile =r'data/sku' + str(itemAmount) + '/orders_' + str(orderAmount) + '_mean_' + str(meanItemInOrder) + '_sku_' + str(itemAmount) + '.xml'
 #orders['20_5']=r'data/sku24/orders_20_mean_5_sku_24.xml'
 
 # trying a different way to get the demonstration running
@@ -180,13 +196,6 @@ item_id_pod_id_dict = {}
 
 distance_ij = WarehouseDateProcessing(warehouseInstance).CalculateDistance()
 
-
-#%% control knobs
-# Specify the number of orders we receive (either 10 or 20)
-orderAmount = 10
-
-# Specify the number of items in the warehouse (either 24 or 360)
-itemAmount = 24
 
 #%% Necessary functions
 
@@ -602,14 +611,14 @@ def F_greedyHeuristic(batchFromStation, packingStation):
         print("Prelim: Batch in a subset of orderToCover")
         print(nextBatch)    
         
-        # Greedy criteria 1 - subset of batches with minimum distance travelled
-        nextBatch = nextBatch.query("distance == distance.min()")
-        print("Min dist criteria (greedy):")
-        print(nextBatch)
-        
-        # Greedy criteria 2 - subset of batches with maximum number of orders covered
+        # Greedy criteria 1 - subset of batches with maximum number of orders covered
         nextBatch = nextBatch.query("numberOfBatchCovered == numberOfBatchCovered.max()")
         print("Max cover criteria:")
+        print(nextBatch)
+        
+        # Greedy criteria 2 - subset of batches with minimum distance travelled
+        nextBatch = nextBatch.query("distance == distance.min()")
+        print("Min dist criteria (greedy):")
         print(nextBatch)
         
         # From that subset, randomly pick a batch and append it to the final result
@@ -916,7 +925,7 @@ for i in range(len(station)):
         # calls the name of the packing station
     packingStation = list(stationCopy.keys())[i]
         # calls the orders that belong to that station
-    listOfOrders = list(stationCopy.values())[i]
+    listOfOrders = list(stationCopy.values())[i] 
         # assign orders from list of orders to batches, procuding all feasible
         # batches for each station
     batchFromStation.append({"station":packingStation, "batchInfo":F_orderToBatch(listOfOrders, packingStation)})
