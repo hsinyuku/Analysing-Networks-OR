@@ -817,6 +817,7 @@ def writeSolutionXML_SAA(result, itemInfoList, filename):
     for station in packingStationNames:
         Bot_ID = ET.SubElement(bots, "Bot")
         Bot_ID.set("ID", station)
+        stationSolution = result[station]
         # batches are written in sub-node Batches of Bot_ID
         Batches = ET.SubElement(Bot_ID, "Batches")
         # write each batch as a sub-node of Bot_ID
@@ -826,6 +827,7 @@ def writeSolutionXML_SAA(result, itemInfoList, filename):
             Batch_ID.set("BatchNumber", str(batchID))
             Batch_ID.set("Distance", str(batch["distance"]))
             Batch_ID.set("Weight", str(batch["weight"]))
+            batchID += 1
             # for each batch, write two sub-nodes: itemsData, edges
             # first write ItemsData
             ItemsData = ET.SubElement(Batch_ID, "ItemsData")
@@ -843,7 +845,7 @@ def writeSolutionXML_SAA(result, itemInfoList, filename):
                     # for each item, conclude information about the itemID and the description
                     Item.set("ID", str(item))
                     Item.set("Type", itemInfoList.loc[item, "Description"])
-                    
+         
             # write Edges as sub-node of Batch_ID
             Edges = ET.SubElement(Batch_ID, "Edges")       
             # write every edge of the batch
@@ -878,6 +880,7 @@ stationFull = F_assignOrderToStation(orderAmount, itemInfoList, "full")
 
 ## Theorical scenario: 
 # station = {"OutD0" : [4,5,6,7], "OutD1" : [0,1,2,3,8,9]}   
+
 batchFromStation = F_feasibleBatch(station)
 
 greedyStation0 = F_greedyHeuristic(station, batchFromStation, itemInfoList, packingStation = "OutD0")
@@ -896,6 +899,7 @@ inputXMLGreedy = F_convertInputForXMLfromGreedy(oriSol)
 
 # Write XML
 outputName = 'orders_' + str(orderAmount) + '_mean_' + str(meanItemInOrder) + '_sku_' + str(itemAmount) + str(orderVersion) + '_solution_dedicated_greedy.xml'
+
 writeSolutionXML_SAA(inputXMLGreedy, itemInfoList, outputName)
 #%%
 # Task 2: SAA

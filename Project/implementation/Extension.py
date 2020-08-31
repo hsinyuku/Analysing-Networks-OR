@@ -614,7 +614,7 @@ def writeSolutionXML(solution, filename):
         Bot_ID = ET.SubElement(split, "Bot")
         Bot_ID.set("ID", station)
         # filter the solution so it only contains batches for the right station
-        stationSolution = [batch for batch in solution if batch["station"] == "OutD0"]
+        stationSolution = [batch for batch in solution if batch["station"] == station]
         # write each batch as a sub-node of Bot_ID
         batchID = 1
         for batch in stationSolution:
@@ -637,10 +637,12 @@ def writeSolutionXML(solution, filename):
         Batches = ET.SubElement(Bot_ID, "Batches")
         # write each batch as a sub-node of Bot_ID
         batchID = 1
+        stationSolution = [batch for batch in solution if batch["station"] == station]
         for batch in stationSolution:
             Batch_ID = ET.SubElement(Batches, "Batch")
             Batch_ID.set("BatchNumber", str(batchID))
             Batch_ID.set("Distance", str(round(sum([distance for distance in batch["distances"].values()]), 2)))
+            batchID += 1
             # for each batch, write two sub-nodes: itemsData, edges
             # first write ItemsData
             ItemsData = ET.SubElement(Batch_ID, "ItemsData")
