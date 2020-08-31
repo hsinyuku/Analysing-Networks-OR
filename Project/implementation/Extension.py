@@ -14,6 +14,7 @@ import os
 from os import path
 import json
 import networkx as nx
+import  xml.etree.ElementTree as ET
 
 #%% A) defining the class 
 class WarehouseDateProcessing():
@@ -601,8 +602,73 @@ def recalculateRouteForSolution(solution, podInfoDict):
         batch["batchRoute"] = orderAssignment["route taken"]
         batch["batchPods"] = set(orderAssignment["route taken"][1:-1])
 
+#%% writing the solution to .xml
+def writeSolutionXML(solution, filename):
+    # base element
+    root = ET.Element("root")
+    # first section "split" contains information about which orders are in which batches, and which batches are assigned to which station (=bot)
+    collecting = ET.SubElement(root, "Collecting")
+    split = ET.SubElement(collecting, 'Split')
+    # write each station as a sub-node of split
+    for station in packingStationNames:
+        Bot_ID = ET.SubElement(split, "Bot")
+        Bot_ID.set("ID", station)
+        # filter the solution so it only contains batches for the right station
+        stationSolution = [batch for batch in solution if batch["station"] == "OutD0"]
+        # write each batch as a sub-node of Bot_ID
+        batchID = 1
+        for batch in stationSolution:
+            Batch_ID = ET.SubElement(Bot_ID, "Batch")
+            Batch_ID.set("ID", str(batchID))
+            batchID += 1
+            # write Orders as the sub-node of Batch_ID
+            Orders = ET.SubElement(Batch_ID, "Orders")
+            # write each order as sub-node of Batch_ID
+            for order in batch["batchOrders"]:
+                Order = ET.SubElement(Orders, "Order")
+                Order.text = str(order)
+    # first section "bots" contains detailed information about each bot (station)
+    bots = ET.SubElement(collecting, "Bots")
+    # write each station as a sub-node of bots
+    for station in packingStationNames:
+        Bot_ID = ET.SubElement(bots, "Bot")
+        Bot_ID.set("ID", station)
+        # batches are written in sub-node Batches of Bot_ID
+        Batches = ET.SubElement(Bot_ID, "Batches")
+        # write each batch as a sub-node of Bot_ID
+        batchID = 1
+        for batch in stationSolution:
+            Batch_ID = ET.SubElement(Batches, "Batch")
+            Batch_ID.set("BatchNumber", str(batchID))
+            Batch_ID.set("Distance", str(round(sum([distance for distance in batch["distances"].values()]), 2)))
+            # for each batch, write two sub-nodes: itemsData, edges
+            # first write ItemsData
+            ItemsData = ET.SubElement(Batch_ID, "ItemsData")
+            # ItemsData has a sub-node called Orders
+            Orders = ET.SubElement(ItemsData, "Orders")
+            # write each order as sub-node of Orders:
+            for order in batch["batchOrders"]:
+                Order = ET.SubElement(Orders, "Order")
+                Order.set("ID", str(order))
+                # write each item in the order as sub-node of Order
+                for item in orderInfoDict[order]["items"].index:
+                    Item = ET.SubElement(Order, "Item")
+                    # for each item, conclude information about the itemID and the description
+                    Item.set("ID", str(item))
+                    Item.set("Type", itemsInfoDict.loc[item, "Description"])
+            # write Edges as sub-node of Batch_ID
+            Edges = ET.SubElement(Batch_ID, "Edges")
+            # write every edge of the batch
+            for edge in batch["distances"].keys():
+                Edge = ET.SubElement(Edges, "Edge")
+                Edge.set("EndNode", str(edge[1]))
+                Edge.set("StartNode", str(edge[0]))
+    
+    tree = ET.ElementTree(root)
+    tree.write(filename)
+
 #%% importing files for mixed shelf policy and creating the instances needed
-skus = 360
+skus = 24
 storagepolicy = "mixed" # this can't be changed here
 
 layoutFile = f'data/layout/1-1-1-2-1.xlayo'
@@ -619,11 +685,12 @@ storagePolicyFile = f'data/sku{skus}/pods_items_{storagepolicy}_shevels_1-5.txt'
 
 # loading information about the orders: contains list of orders, with number
 # of ordered items per SKU-ID
-orderFile = f'data/sku{skus}/orders_20_mean_5_sku_{skus}_b.xml'
+orderFile = f'orders_20_mean_5_sku_{skus}_b.xml'
+orderPath = f'data/sku{skus}/' + orderFile
 #orders['20_5']=r'data/sku24/orders_20_mean_5_sku_24.xml'
 
 #%% preparing the data
-warehouseInstance = instance.Warehouse(layoutFile, instanceFile, podInfoFile, storagePolicyFile, orderFile)
+warehouseInstance = instance.Warehouse(layoutFile, instanceFile, podInfoFile, storagePolicyFile, orderPath)
 batch_weight = 18
 item_id_pod_id_dict = {}
 distance_ij = demo.WarehouseDateProcessing(warehouseInstance).CalculateDistance()
@@ -640,6 +707,10 @@ orderAssignment = F_orderToStation(ordersCopy, podCopy, False)
 # creating a solution from the assignment of orders to stations
 solution = createSolutionFromOrderAssignment(orderAssignment, packingStationNames)
 print(round(solutionDistance(solution), 2))
+writeSolutionXML(solution, "solution_" + orderFile[0:-4] + "_mixedpolicy.xml")
 
-# to alter the solution by exchanging k orders, use
-# suggestedSolution = kOrdersExchange(solution, 5)["solution"]
+#%% to alter the solution by exchanging k orders, use
+suggestedSolution = kOrdersExchange(solution, 5)["solution"]
+recalculateRouteForSolution(suggestedSolution, podInfoDict)
+print(round(solutionDistance(suggestedSolution), 2))
+
