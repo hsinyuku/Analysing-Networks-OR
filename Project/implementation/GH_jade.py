@@ -244,14 +244,14 @@ def F_greedyHeuristic(batchFromStation, packingStation):
         print("Prelim: Batch in a subset of orderToCover")
         print(nextBatch)    
         
-        # Greedy criteria 2 - subset of batches with maximum number of orders covered
-        nextBatch = nextBatch.query("numberOfBatchCovered == numberOfBatchCovered.max()")
-        print("Max cover criteria:")
-        print(nextBatch)
-        
         # Greedy criteria 1 - subset of batches with minimum distance travelled
         nextBatch = nextBatch.query("distance == distance.min()")
         print("Min dist criteria (greedy):")
+        print(nextBatch)
+        
+        # Greedy criteria 2 - subset of batches with maximum number of orders covered
+        nextBatch = nextBatch.query("numberOfBatchCovered == numberOfBatchCovered.max()")
+        print("Max cover criteria:")
         print(nextBatch)
     
         # From that subset, randomly pick a batch and append it to the final result
@@ -506,7 +506,7 @@ def accept_prob(cost, new_cost, T):
         return p
        
 #%%
-def SAA(oriSol, Station, T, alpha, tempLimit):
+def SAA_old(oriSol, Station, T, alpha, tempLimit):
     print("  ")
     print("------------------ For station "+str(Station) +"------------------")
     T=T
@@ -554,6 +554,7 @@ def SAA(oriSol, Station, T, alpha, tempLimit):
       if p > uRan:
           print("P > random U(0,1) --> accept newSol")
           oriSol = copy.deepcopy(newSol)
+          
       #  reject 
       else: 
           print("Reject new solution")
@@ -571,14 +572,43 @@ def SAA(oriSol, Station, T, alpha, tempLimit):
           
       T = alpha*T
     
-    return(optDis)
+    return(optDis, DisRec, optDisRec)
+
+#%%
+def SAA_pertubation(oriSol, Station, T, alpha, tempLimit, beta, iteration):
+    for i in range(iteration):
+        T = beta*T 
+        print("   ")
+        print("################# Iteration "+str(i+1)+" starts: #################")
+        SAA(oriSol,Station, T, alpha, tempLimit)
+        print("   ")
+        print("Iteration "+str(i+1)+" ended")
+        
+
+SAA_pertubation(greedyStation1,"OutD1", T=10/0.8, alpha=0.8, tempLimit=7, beta=0.8, iteration=2) 
+
 
 #%% Executing results of SAA
 
-optDis1 = SAA(greedyStation1,"OutD1", T=10, alpha=0.8, tempLimit=5)
-optDis0 = SAA(greedyStation0,"OutD0", T=10, alpha=0.8, tempLimit=5)
+optDis1 = SAA_old(greedyStation1,"OutD1", T=10, alpha=0.8, tempLimit=5)
+
+#%%
+optDis0 = SAA_old(greedyStation0,"OutD0", T=10, alpha=0.8, tempLimit=5)
 print("  ")
 print("Optimal distance of all stations: "+str(optDis1+optDis0))
 
 #%% End of the file to be executed - Jade
 
+
+def F_randomPickBatch(batchFromStation,packingStation,removedOrderList):
+    batchList = []
+    pickedBatch = []
+    pickedOrder = []
+    batchFromStationCopy = copy.deepcopy(batchFromStation)
+    
+    removedOrderList = F_elementsOfList(removedOrderList)
+    print("removedOrder(s) : "+str(removedOrderList))
+    
+    return(removedOrderList) 
+    
+pickedBatch0, pickedOrder0,pickedBatchInfo0 = F_randomPickBatch(batchFromStation, "OutD0",removedOrder0)
