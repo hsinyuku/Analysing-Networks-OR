@@ -15,15 +15,6 @@ import random as rd
 import numpy.random as rn
 import sys, os
 
-class HiddenPrints:
-    def __enter__(self):
-        self._original_stdout = sys.stdout
-        sys.stdout = open(os.devnull, 'w')
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        sys.stdout.close()
-        sys.stdout = self._original_stdout
-
 #%% control knobs
 
 # SPecify mean item amount in an order (either 1x6 or 5)
@@ -584,24 +575,23 @@ oriSol = [greedyStation0, greedyStation1]
 oriDis = sum(greedyStation0['distance'])+sum(greedyStation1['distance'])
     
 #%%
-def SwapStation(station):
+def SwapStation(station, n):
     stationCo=copy.deepcopy(station)
     
-    n=1
     print("# of orders to change station is "+str(n))
     
     if len(stationCo['OutD0'])>1 and len(stationCo['OutD0'])>1: 
-        #n = rd.randint(1,orderAmount-1) 
-        print("11111")
+
+        #print("Situation 1")
         ordToMoved=rd.sample(range(10),n)
         
     
     elif  len(stationCo['OutD0'])<2: 
-        print("22222")
+        #print("Situation 2")
         ordToMoved=rd.sample(stationCo['OutD1'],n)
         
     else: 
-        print("3333")
+        #print("Situation 3")
         ordToMoved=rd.sample(stationCo['OutD0'],n)
         
     
@@ -616,11 +606,11 @@ def SwapStation(station):
         ### Need to check stationCo not empty!!!!
     print(stationCo)   
     
-    return(stationCo)    
+    return([stationCo, ordToMoved])    
 
 #%%
-def F_neighbour(station): 
-    newStation = SwapStation(station)
+def F_neighbour(station, n): 
+    newStation, orderMoved = SwapStation(station, n)
     newFB = F_feasibleBatch(newStation)
     sol0 = F_greedyHeuristic(newStation, newFB, itemInfoList, packingStation = "OutD0")
     sol1 = F_greedyHeuristic(newStation, newFB, itemInfoList, packingStation = "OutD1")
@@ -628,12 +618,12 @@ def F_neighbour(station):
     sol1 = sol1.drop(["numberOfBatchCovered"],axis=1)
     print(sol0)
     print(sol1)
-    return([sol0, sol1, newStation])
+    return([sol0, sol1, newStation, orderMoved])
 
 #%%
 def accept_prob(cost, new_cost, T):
     print("oriDis is: "+str(cost))
-    print("newDis is: "+str(new_cost))
+    #print("newDis is: "+str(new_cost))
     #print(new_cost<cost)
     #print(new_cost==cost)
     
@@ -644,7 +634,7 @@ def accept_prob(cost, new_cost, T):
         return p
      
 #%%
-def SAA(oriSol, oriDis, station, T, alpha, tempLimit):
+def SAA(oriSol, oriDis, station, T, alpha, tempLimit, n):
     print("  ")
     #print("------------------ For station "+str(Station) +"------------------")
     T=T
@@ -670,10 +660,11 @@ def SAA(oriSol, oriDis, station, T, alpha, tempLimit):
     
     #if T==1000:    
     round=0
+    orderMovedList = [] 
     while T > epsilon:  
       round=round+1
       print("   ")
-      print(" ************ Round "+str(round)+": T = "+str(T)+" ***************")
+      print(" ************ Round "+str(round)+": T = "+ str(T) +" ***************")
       #oriSol=oriSol.reset_index(drop=True)
       
       print("The original solution: ")
@@ -686,9 +677,12 @@ def SAA(oriSol, oriDis, station, T, alpha, tempLimit):
       print("optDis is: "+str(optDis))
       print("    ")
       
-      newSol = F_neighbour(station)
+      newSol = F_neighbour(station, n)
       newDis = sum(newSol[0]['distance'])+sum(newSol[1]['distance'])
       print("newDis is: "+str(newDis))
+      
+      orderMoved = newSol[3]
+      orderMovedList.append(orderMoved)
       
       #Accept the neibour if it has smaller distance
       #print("FFF")
@@ -725,15 +719,32 @@ def SAA(oriSol, oriDis, station, T, alpha, tempLimit):
       print("DisRec: "+str(DisRec))  
       print("optDisRec: "+str(optDisRec))
       #print("Optimal distance at round "+str(round)+" is "+str(optDisRec[-1]))
-          
+      print("   ")
+      print("orderMoverRec: ")
+      print(orderMovedList)
+      
+      print("************* End of round " +str(round)+ ": T = " + str(T) + " ***********************")
+      
       T = alpha*T
     
-    return([oriSol, optSol, optDis, DisRec, optDisRec])
+    return([oriSol, optSol, round, DisRec, optDisRec])
 
 #%% Task 2: SAA
 
-tempRes = SAA(oriSol, oriDis, station, T=10, alpha=0.8, tempLimit=6)
+# To try first, run the follow for 3 round: 
+#finalRes = SAA(oriSol, oriDis, station, T=10, alpha=0.8, tempLimit=5, n=1)
 
+finalRes = SAA(oriSol, oriDis, station, T=1000, alpha=0.8, tempLimit=0.1, n=1)
+
+print("After round "+str(finalRes[2])+" ,the optimal distance is "+str(finalRes[4][-1]))
+print("Optimal Solution is ")
+print(finalRes[1][0])
+print(finalRes[1][1])
+
+#%% Task 2: Perturbation
+
+#N = rd.randint(2,orderAmount-1) 
+perturRes = SAA(oriSol, oriDis, station, T=1000, alpha=0.8, tempLimit=0.1, n=2)
 
 #%% Task 3: Extension
 # 1. Assuming that the items of an SKU can be stored in different shelves and different SKUs can stored within a shelf. We call this storage policy as mixed policy. Extend your implemented heuristics in the previous subsections to support this assumption.
