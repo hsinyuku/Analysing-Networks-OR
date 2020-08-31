@@ -17,55 +17,6 @@ import sys, os
 import pickle
 import xml.etree.ElementTree as ET
 
-#%% control knobs
-
-# Specify version of order ("", "_a" or "_b")
-orderVersion = ""
-
-# SPecify mean item amount in an order (either 1x6 or 5)
-meanItemInOrder = "5"
-
-# Specify the number of orders we receive (either 10 or 20)
-orderAmount = 10
-
-# Specify the number of items in the warehouse (either 24 or 360)
-itemAmount = 24
-
-# SPecifiy the pod amount
-podAmount = 24
-
-# Specify the policy (either "dedicated_1" or "mixed_shevels_1-5")
-podPolicy = "dedicated_1"
-
-#%% A) importing files and creating instances defined in instance_demo.py
-
-# not sure what this contains, but it is needed for the Warehouse-class
-layoutFile = r'data/layout/1-1-1-2-1.xlayo' 
-# loading all the information about the pods
-podInfoFile = 'data/sku' + str(itemAmount) + '/pods_infos.txt'   
-# loading information about picking locations, packing stations, waypoints,
-# pods 
-instanceFile = r'data/sku' + str(itemAmount) + '/layout_sku_' + str(itemAmount) + '_2.xml'
-
-# loading information about item storage: contains all SKUs along with their
-# attributes
-storagePolicyFile = 'data/sku' + str(itemAmount) + '/pods_items_' + str(podPolicy) + '.txt'
-#storagePolicies['mixed'] = 'data/sku24/pods_items_mixed_shevels_1-5.txt'
-
-# loading information about the orders: contains list of orders, with number
-# of ordered items per SKU-ID
-orderFile =r'data/sku' + str(itemAmount) + '/orders_' + str(orderAmount) + '_mean_' + str(meanItemInOrder) + '_sku_' + str(itemAmount) + orderVersion + '.xml'
-#orders['20_5']=r'data/sku24/orders_20_mean_5_sku_24.xml'
-
-# trying a different way to get the demonstration running
-# function to prepare data
-warehouseInstance = instance.Warehouse(layoutFile, instanceFile, podInfoFile, storagePolicyFile, orderFile)
-
-batch_weight = 18
-item_id_pod_id_dict = {}
-
-distance_ij = demo.WarehouseDateProcessing(warehouseInstance).CalculateDistance()
-
 #%% Necessary functions
 
 # Functions rely on the script instance_demo.py to be sources, as this script 
@@ -863,8 +814,63 @@ def writeSolutionXML_SAA(result, itemInfoList, filename):
 
 # Main script starting from here used the aboved functions 
 
+#%% control knobs
 
-#%% Task 1'- Greedy Heurisitc 
+# Specify version of order ("", "_a" or "_b")
+orderVersion = ""
+
+# SPecify mean item amount in an order (either 1x6 or 5)
+meanItemInOrder = "1x6"
+
+# Specify the number of orders we receive (either 10 or 20)
+orderAmount = 10
+
+# Specify the number of items in the warehouse (either 24 or 360)
+itemAmount = 24
+
+# SPecifiy the pod amount
+podAmount = 24
+
+# Specify the policy (either "dedicated_1" or "mixed_shevels_1-5")
+podPolicy = "dedicated_1"
+
+#%% This for loop is used to print out every possible order versions
+# oriDisList = []
+# SAADisList = []
+# for orderVersion in ["", "_a", "_b"]:
+#     for orderAmount in [10, 20]:
+ 
+#%%              
+#A) importing files and creating instances defined in instance_demo.py
+
+# not sure what this contains, but it is needed for the Warehouse-class
+layoutFile = r'data/layout/1-1-1-2-1.xlayo' 
+# loading all the information about the pods
+podInfoFile = 'data/sku' + str(itemAmount) + '/pods_infos.txt'   
+# loading information about picking locations, packing stations, waypoints,
+# pods 
+instanceFile = r'data/sku' + str(itemAmount) + '/layout_sku_' + str(itemAmount) + '_2.xml'
+
+# loading information about item storage: contains all SKUs along with their
+# attributes
+storagePolicyFile = 'data/sku' + str(itemAmount) + '/pods_items_' + str(podPolicy) + '.txt'
+#storagePolicies['mixed'] = 'data/sku24/pods_items_mixed_shevels_1-5.txt'
+
+# loading information about the orders: contains list of orders, with number
+# of ordered items per SKU-ID
+orderFile =r'data/sku' + str(itemAmount) + '/orders_' + str(orderAmount) + '_mean_' + str(meanItemInOrder) + '_sku_' + str(itemAmount) + orderVersion + '.xml'
+#orders['20_5']=r'data/sku24/orders_20_mean_5_sku_24.xml'
+
+# trying a different way to get the demonstration running
+# function to prepare data
+warehouseInstance = instance.Warehouse(layoutFile, instanceFile, podInfoFile, storagePolicyFile, orderFile)
+
+batch_weight = 18
+item_id_pod_id_dict = {}
+
+distance_ij = demo.WarehouseDateProcessing(warehouseInstance).CalculateDistance()
+#%%
+#% Task 1'- Greedy Heurisitc 
 
 # Full information on items and their location in the pods
 
@@ -892,8 +898,9 @@ greedyStation1 = greedyStation1.drop(["numberOfBatchCovered"],axis=1)
 # original solution and its fitting value, the total distance 
 oriSol = [greedyStation0, greedyStation1]
 oriDis = sum(greedyStation0['distance'])+sum(greedyStation1['distance'])
-
 #%%
+# oriDisList.append(oriDis)
+#%
 # Prepare results as input to write XML
 inputXMLGreedy = F_convertInputForXMLfromGreedy(oriSol)
 
@@ -907,12 +914,14 @@ writeSolutionXML_SAA(inputXMLGreedy, itemInfoList, outputName)
 # To try first, run the follow for 3 round: 
 #finalRes = SAA(oriSol, oriDis, station, T=10, alpha=0.8, tempLimit=5, n=1)
 
-finalRes = SAA(oriSol, oriDis, station, T= 5000, alpha=0.95, tempLimit=0.01, n=1)
+finalRes = SAA(oriSol, oriDis, station, T= 10, alpha=0.85, tempLimit=1, n=1)
 
 print("After round "+str(finalRes[2])+" ,the optimal distance is "+str(finalRes[4][-1]))
 print("Optimal Solution is ")
 print(finalRes[1][0])
 print(finalRes[1][1])
+
+# SAADisList.append(finalRes[4][-1])
 
 # Prepare results as input to write XML
 inputXMLSAA = F_convertInputForXMLfromSAA(finalRes)
@@ -920,7 +929,6 @@ inputXMLSAA = F_convertInputForXMLfromSAA(finalRes)
 # Write XML
 outputName = 'orders_' + str(orderAmount) + '_mean_' + str(meanItemInOrder) + '_sku_' + str(itemAmount) + str(orderVersion) + '_solution_dedicated_SAA.xml'
 writeSolutionXML_SAA(inputXMLSAA, itemInfoList, outputName)
-
 #%% Task 2: Perturbation
 
 #n = rd.randint(2,orderAmount-1) 

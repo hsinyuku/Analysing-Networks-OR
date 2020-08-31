@@ -670,7 +670,16 @@ def writeSolutionXML(solution, filename):
     tree.write(filename)
 
 #%% importing files for mixed shelf policy and creating the instances needed
-skus = 360
+skus = 24
+orderAmount = 10
+meanItemInOrder = "1x6"
+orderVersion = ""
+greedyDisList = []
+
+# for skus in [24,360]:
+#     for orderAmount in [10, 20]:
+#         for orderVersion in ["", "_a", "_b"]:
+
 storagepolicy = "mixed" # this can't be changed here
 
 layoutFile = f'data/layout/1-1-1-2-1.xlayo'
@@ -687,7 +696,7 @@ storagePolicyFile = f'data/sku{skus}/pods_items_{storagepolicy}_shevels_1-5.txt'
 
 # loading information about the orders: contains list of orders, with number
 # of ordered items per SKU-ID
-orderFile = f'orders_20_mean_5_sku_{skus}.xml'
+orderFile = f'orders_{orderAmount}_mean_{meanItemInOrder}_sku_{skus}{orderVersion}.xml'
 orderPath = f'data/sku{skus}/' + orderFile
 #orders['20_5']=r'data/sku24/orders_20_mean_5_sku_24.xml'
 
@@ -709,6 +718,7 @@ orderAssignment = F_orderToStation(ordersCopy, podCopy, False)
 # creating a solution from the assignment of orders to stations
 solution = createSolutionFromOrderAssignment(orderAssignment, packingStationNames)
 print(round(solutionDistance(solution), 2))
+greedyDisList.append(round(solutionDistance(solution), 2))
 writeSolutionXML(solution, "solution/solution_" + orderFile[0:-4] + "_mixedpolicy.xml")
 
 #%% to alter the solution by exchanging k orders, use this algorithm: 
