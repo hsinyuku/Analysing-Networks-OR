@@ -23,7 +23,7 @@ import xml.etree.ElementTree as ET
 orderVersion = ""
 
 # SPecify mean item amount in an order (either 1x6 or 5)
-meanItemInOrder = "1x6"
+meanItemInOrder = "5"
 
 # Specify the number of orders we receive (either 10 or 20)
 orderAmount = 10
@@ -539,6 +539,9 @@ def F_greedyHeuristic(station, batchFromStation, itemInfoList, packingStation):
 #%%
 def F_feasibleBatch(station):
     batchFromStation = []
+    '''
+    the function get all the feasible batches for a station. 
+    '''
     
     for i in range(len(station)):
         stationCopy = copy.deepcopy(station)
@@ -555,12 +558,22 @@ def F_feasibleBatch(station):
 
 #%%
 def SwapStation(station, n):
+    '''
+    This function is used in simulate annealing to randomly reassign orders to
+    different stations. 
+
+    Parameters
+    ----------
+    station : the assignment of orders to each station.
+    n : number of orders to be swapped.
+    -------
+    '''
+    
     stationCo=copy.deepcopy(station)
     
     print("# of orders to change station is "+str(n))
     
     if len(stationCo['OutD0'])>1 and len(stationCo['OutD0'])>1: 
-
         #print("Situation 1")
         ordToMoved=rd.sample(range(10),n)
         
@@ -578,17 +591,26 @@ def SwapStation(station, n):
     for i in range(len(ordToMoved)):
         for key, value in stationCo.items(): 
             if ordToMoved[i] not in value: 
-                    #print(str(ordToMoved[i])+" is not in "+str(key)) 
                 value.append(ordToMoved[i]) 
             else:
                 value.remove(ordToMoved[i])
-        ### Need to check stationCo not empty!!!!
+
     print(stationCo)   
     
     return([stationCo, ordToMoved])    
 
 #%%
 def F_neighbour(station, n): 
+    '''
+    This is used in simulated annealing algorithm(SAA) to create the neighbor o
+
+    Parameters
+    ----------
+    station : the assignment of orders to each station.
+    n : number of orders to be swapped.
+    -------
+
+    '''
     newStation, orderMoved = SwapStation(station, n)
     newFB = F_feasibleBatch(newStation)
     sol0 = F_greedyHeuristic(newStation, newFB, itemInfoList, packingStation = "OutD0")
@@ -601,10 +623,24 @@ def F_neighbour(station, n):
 
 #%%
 def accept_prob(cost, new_cost, T):
+    '''
+    This is a small function used in simulated annealing algorithm(SAA) to 
+    caluculate the probability to accept a solution.  
+
+    Parameters
+    ----------
+    cost : original distance
+    new_cost : new distance
+    T : temperature in SAA.
+
+    Returns
+    -------
+    p : the probability to accept a solution
+
+    '''
+    
     print("oriDis is: "+str(cost))
     #print("newDis is: "+str(new_cost))
-    #print(new_cost<cost)
-    #print(new_cost==cost)
     
     if new_cost < cost: return 1
     
@@ -614,8 +650,25 @@ def accept_prob(cost, new_cost, T):
      
 #%%
 def SAA(oriSol, oriDis, station, T, alpha, tempLimit, n):
+    '''
+    This is the simulated annealing algorithm, given an original solution, 
+    it will keep finding solutions in neighbourhood until the minimum 
+    temperature is reached. The distances of every solution found are recorded 
+    in DisRec. The optimal results is recorded in optDisRec. 
+
+    Parameters
+    ----------
+    oriSol : original solution
+    oriDis : original distance
+    station : the assignment of orders to each station.
+    T : temperature
+    alpha
+    tempLimit : minimum temperature
+    n : number of orders to be swapped.
+    -------
+    '''
+    
     print("  ")
-    #print("------------------ For station "+str(Station) +"------------------")
     T=T
     alpha = alpha
     epsilon = tempLimit
@@ -640,6 +693,7 @@ def SAA(oriSol, oriDis, station, T, alpha, tempLimit, n):
     #if T==1000:    
     round=0
     orderMovedList = [] 
+    
     while T > epsilon:  
       round=round+1
       print("   ")
@@ -663,13 +717,12 @@ def SAA(oriSol, oriDis, station, T, alpha, tempLimit, n):
       orderMoved = newSol[3]
       orderMovedList.append(orderMoved)
       
-      #Accept the neibour if it has smaller distance
-      #print("FFF")
+      #Accept the neibour if it has smaller distance / if p > random number
       p = accept_prob(oriDis, newDis, T)
       #print("FFF")
       uRan = rn.random()
       
-      #if newDis < oriDis:
+      
       if p > uRan:
           if p==1:
               print("newDis is better / not worse than oriDis --> accept newSol")
@@ -802,7 +855,13 @@ def writeSolutionXML_SAA(result, itemInfoList, filename):
     tree = ET.ElementTree(root)
     tree.write(filename)
 
-#%% Task 1'
+#%%
+
+# Main script starting from here used the aboved functions 
+
+
+#%% Task 1'- Greedy Heurisitc 
+
 # Full information on items and their location in the pods
 
 podInfoList = F_podInfo(podAmount)
@@ -815,22 +874,24 @@ itemInfoList = pd.merge(podInfoList, itemInfoList, how = "left", on = "Descripti
 station = F_assignOrderToStation(orderAmount, itemInfoList, "lite")
 stationFull = F_assignOrderToStation(orderAmount, itemInfoList, "full")
 
-## Theorical scenario: 
-# station = {"OutD0" : [4,5,6,7], "OutD1" : [0,1,2,3,8,9]}   
+  
 #%%
+# get all the feasible batches for a station
 batchFromStation = F_feasibleBatch(station)
 
 #%%
+# the greedy solution for each station 
 greedyStation0 = F_greedyHeuristic(station, batchFromStation, itemInfoList, packingStation = "OutD0")
 greedyStation1 = F_greedyHeuristic(station, batchFromStation, itemInfoList, packingStation = "OutD1")
 
-#%%
 greedyStation0 = greedyStation0.drop(["numberOfBatchCovered"],axis=1)
 greedyStation1 = greedyStation1.drop(["numberOfBatchCovered"],axis=1)
 
+# original solution and its fitting value, the total distance 
 oriSol = [greedyStation0, greedyStation1]
 oriDis = sum(greedyStation0['distance'])+sum(greedyStation1['distance'])
-    
+
+#%%
 # Prepare results as input to write XML
 inputXMLGreedy = F_convertInputForXMLfromGreedy(oriSol)
 
@@ -840,10 +901,7 @@ writeSolutionXML_SAA(inputXMLGreedy, itemInfoList, outputName)
 #%%
 # Task 2: SAA
 
-# To try first, run the follow for 3 round: 
-#finalRes = SAA(oriSol, oriDis, station, T=10, alpha=0.8, tempLimit=5, n=1)
-
-finalRes = SAA(oriSol, oriDis, station, T=10000, alpha=0.95, tempLimit=0.01, n=1)
+finalRes = SAA(oriSol, oriDis, station, T=1000, alpha=0.8, tempLimit=0.01, n=1)
 
 print("After round "+str(finalRes[2])+" ,the optimal distance is "+str(finalRes[4][-1]))
 print("Optimal Solution is ")
@@ -859,8 +917,8 @@ writeSolutionXML_SAA(inputXMLSAA, itemInfoList, outputName)
 
 #%% Task 2: Perturbation
 
-#N = rd.randint(2,orderAmount-1) 
-perturRes = SAA(oriSol, oriDis, station, T=5000, alpha=0.8, tempLimit=0.01, n=2)
+#n = rd.randint(2,orderAmount-1) 
+perturRes = SAA(oriSol, oriDis, station, T=10000, alpha=0.8, tempLimit=0.01, n=2)
 
 
 
