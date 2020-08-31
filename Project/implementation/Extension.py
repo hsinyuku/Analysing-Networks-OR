@@ -709,8 +709,33 @@ solution = createSolutionFromOrderAssignment(orderAssignment, packingStationName
 print(round(solutionDistance(solution), 2))
 writeSolutionXML(solution, "solution/solution_" + orderFile[0:-4] + "_mixedpolicy.xml")
 
-#%% to alter the solution by exchanging k orders, use
-suggestedSolution = kOrdersExchange(solution, 5)["solution"]
-recalculateRouteForSolution(suggestedSolution, podInfoDict)
-print(round(solutionDistance(suggestedSolution), 2))
-
+#%% to alter the solution by exchanging k orders, use this algorithm: 
+k = 2
+l = 50
+distance = solutionDistance(solution)
+while k < int(len(orderInfoDict) * 0.8):
+    print("------------------------------------------------")
+    print("Finding a neighbour in the " + str(k) + "-opt neighbourhood.")
+    currentSolution = copy.deepcopy(solution)
+    currentDistance = solutionDistance(currentSolution)
+    print("Current distance is " + str(round(currentDistance, 2)))
+    # instead of finding the best neighbour in some neighbourhood, select the
+    # best neighbour from l neighbours in that neighbourhood
+    print("  Number of neighbours in " + str(k) + "-opt neighbourhood visited:")
+    for i in range(l):
+        print(i)
+        suggestedSolution = kOrdersExchange(solution, k)["solution"]
+        recalculateRouteForSolution(suggestedSolution, podInfoDict)
+        suggestedDistance = solutionDistance(suggestedSolution)
+        print("  Distance of suggested solution: "+ str(suggestedDistance) + " (current distance: " + str(currentDistance) + ")")
+        if suggestedDistance < currentDistance:
+            print("Found a better neighbour with distance " + str(suggestedDistance))
+            currentSolution = suggestedSolution
+            currentDistance = suggestedDistance
+    if currentDistance < distance:
+        print("Replacing old solution. Old Distance: " + str(distance) + ". New Distance: " + str(currentDistance))
+        distance = currentDistance
+        solution = currentSolution
+    else:
+        k += 1
+        print("Keeping old solution. Increasing neighbourhood.")
