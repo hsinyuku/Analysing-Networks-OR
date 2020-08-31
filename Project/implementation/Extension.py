@@ -668,7 +668,7 @@ def writeSolutionXML(solution, filename):
     tree.write(filename)
 
 #%% importing files for mixed shelf policy and creating the instances needed
-skus = 24
+skus = 360
 storagepolicy = "mixed" # this can't be changed here
 
 layoutFile = f'data/layout/1-1-1-2-1.xlayo'
@@ -685,7 +685,7 @@ storagePolicyFile = f'data/sku{skus}/pods_items_{storagepolicy}_shevels_1-5.txt'
 
 # loading information about the orders: contains list of orders, with number
 # of ordered items per SKU-ID
-orderFile = f'orders_20_mean_5_sku_{skus}_b.xml'
+orderFile = f'orders_20_mean_5_sku_{skus}.xml'
 orderPath = f'data/sku{skus}/' + orderFile
 #orders['20_5']=r'data/sku24/orders_20_mean_5_sku_24.xml'
 
@@ -707,10 +707,35 @@ orderAssignment = F_orderToStation(ordersCopy, podCopy, False)
 # creating a solution from the assignment of orders to stations
 solution = createSolutionFromOrderAssignment(orderAssignment, packingStationNames)
 print(round(solutionDistance(solution), 2))
-writeSolutionXML(solution, "solution_" + orderFile[0:-4] + "_mixedpolicy.xml")
+writeSolutionXML(solution, "solution/solution_" + orderFile[0:-4] + "_mixedpolicy.xml")
 
-#%% to alter the solution by exchanging k orders, use
-suggestedSolution = kOrdersExchange(solution, 5)["solution"]
-recalculateRouteForSolution(suggestedSolution, podInfoDict)
-print(round(solutionDistance(suggestedSolution), 2))
-
+#%% to alter the solution by exchanging k orders, use this algorithm: 
+k = 2
+l = 50
+distance = solutionDistance(solution)
+while k < int(len(orderInfoDict) * 0.8):
+    print("------------------------------------------------")
+    print("Finding a neighbour in the " + str(k) + "-opt neighbourhood.")
+    currentSolution = copy.deepcopy(solution)
+    currentDistance = solutionDistance(currentSolution)
+    print("Current distance is " + str(round(currentDistance, 2)))
+    # instead of finding the best neighbour in some neighbourhood, select the
+    # best neighbour from l neighbours in that neighbourhood
+    print("  Number of neighbours in " + str(k) + "-opt neighbourhood visited:")
+    for i in range(l):
+        print(i)
+        suggestedSolution = kOrdersExchange(solution, k)["solution"]
+        recalculateRouteForSolution(suggestedSolution, podInfoDict)
+        suggestedDistance = solutionDistance(suggestedSolution)
+        print("  Distance of suggested solution: "+ str(suggestedDistance) + " (current distance: " + str(currentDistance) + ")")
+        if suggestedDistance < currentDistance:
+            print("Found a better neighbour with distance " + str(suggestedDistance))
+            currentSolution = suggestedSolution
+            currentDistance = suggestedDistance
+    if currentDistance < distance:
+        print("Replacing old solution. Old Distance: " + str(distance) + ". New Distance: " + str(currentDistance))
+        distance = currentDistance
+        solution = currentSolution
+    else:
+        k += 1
+        print("Keeping old solution. Increasing neighbourhood.")
