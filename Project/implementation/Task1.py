@@ -23,7 +23,7 @@ import xml.etree.ElementTree as ET
 orderVersion = ""
 
 # SPecify mean item amount in an order (either 1x6 or 5)
-meanItemInOrder = "1x6"
+meanItemInOrder = "5"
 
 # Specify the number of orders we receive (either 10 or 20)
 orderAmount = 10
@@ -368,6 +368,8 @@ def F_assignOrderToStation(orderAmount, itemInfoList, type = "full"):
                 station["OutD1"].append(orderID)
     if station["OutD0"] == []:
         station["OutD0"].append(station["OutD1"].pop(0))
+    elif station["OutD1"] == []:
+        station["OutD1"].append(station["OutD0"].pop(0))
     return(station)
 
 #%%
@@ -817,14 +819,11 @@ stationFull = F_assignOrderToStation(orderAmount, itemInfoList, "full")
 
 ## Theorical scenario: 
 # station = {"OutD0" : [4,5,6,7], "OutD1" : [0,1,2,3,8,9]}   
-#%%
 batchFromStation = F_feasibleBatch(station)
 
-#%%
 greedyStation0 = F_greedyHeuristic(station, batchFromStation, itemInfoList, packingStation = "OutD0")
 greedyStation1 = F_greedyHeuristic(station, batchFromStation, itemInfoList, packingStation = "OutD1")
 
-#%%
 greedyStation0 = greedyStation0.drop(["numberOfBatchCovered"],axis=1)
 greedyStation1 = greedyStation1.drop(["numberOfBatchCovered"],axis=1)
 
@@ -843,7 +842,7 @@ writeSolutionXML_SAA(inputXMLGreedy, itemInfoList, outputName)
 # To try first, run the follow for 3 round: 
 #finalRes = SAA(oriSol, oriDis, station, T=10, alpha=0.8, tempLimit=5, n=1)
 
-finalRes = SAA(oriSol, oriDis, station, T=10000, alpha=0.95, tempLimit=0.01, n=1)
+finalRes = SAA(oriSol, oriDis, station, T= 5000, alpha=0.95, tempLimit=0.01, n=1)
 
 print("After round "+str(finalRes[2])+" ,the optimal distance is "+str(finalRes[4][-1]))
 print("Optimal Solution is ")
