@@ -166,18 +166,22 @@ class Demo():
 layoutFile = r'data/layout/1-1-1-2-1.xlayo' 
 # loading all the information about the pods
 podInfoFile = 'data/sku24/pods_infos.txt'   # 
+#podInfoFile = 'data/sku360/pods_infos.txt'   # 
 # loading information about picking locations, packing stations, waypoints,
 # pods 
 instanceFile = r'data/sku24/layout_sku_24_2.xml'
+#instanceFile = r'data/sku360/layout_sku_360_2.xml'
 
 # loading information about item storage: contains all SKUs along with their
 # attributes
 storagePolicyFile = 'data/sku24/pods_items_dedicated_1.txt'
+#storagePolicyFile = 'data/sku360/pods_items_dedicated_1.txt'
 #storagePolicies['mixed'] = 'data/sku24/pods_items_mixed_shevels_1-5.txt'
 
 # loading information about the orders: contains list of orders, with number
 # of ordered items per SKU-ID
 orderFile =r'data/sku24/orders_10_mean_1x6_sku_24.xml'
+#orderFile =r'data/sku360/orders_10_mean_5_sku_360.xml'
 #orders['20_5']=r'data/sku24/orders_20_mean_5_sku_24.xml'
 
 # trying a different way to get the demonstration running
