@@ -159,6 +159,8 @@ def prepareData(warehouseInstance):
         for podItem in podInfoDict[pod]:
             podItem["ID"] = [item["ID"] for item in itemsInfoDict if item["Description"] == podItem["Description"]][0]
     
+    # removing all pods that are empty (needed for 360 SKUs):
+    podInfoDict = {podID:SKUs for podID, SKUs in podInfoDict.items() if len(SKUs) >0}
     # converting data to DataFrames, where it helps
     for pod in podInfoDict:
         podInfoDict[pod] = pd.DataFrame(podInfoDict[pod]).set_index("ID")
@@ -167,8 +169,6 @@ def prepareData(warehouseInstance):
         
     itemsInfoDict = pd.DataFrame(itemsInfoDict).set_index("ID")
     
-    # removing artifact decimals from distance_ij
-    {key:round(value, 1) for key, value in distance_ij.items()}
     return([podInfoDict, itemsInfoDict, orderInfoDict, packingStationNames])
 
 # -----------------------------------------------------------------------------
@@ -191,7 +191,7 @@ def prepareData(warehouseInstance):
 #%%
 # greedy heuristic to determine the route with which to fulfil an order, and its fitness value
 
-def F_fitnessValueOrderToStation(order, station, podCopy):
+def F_fitnessValueOrderToStation(order, station, podCopy, pr = False):
     """For a given station and order, returns route the order will take.
     The distance is calculated greedily: for all items in the order, the algorithm looks for the nearest pod that contains any of the items and chooses to visit it. From this pod, it tries to pick as many items as possible.
 
@@ -209,69 +209,72 @@ def F_fitnessValueOrderToStation(order, station, podCopy):
     Dictionary with key-value pairs:"distances travelled", "route taken", "route information"
 
     """
-    # get a path
+    # get an empty path
     route = [station]
     routeInfo = {}
     # set the distance of the path to 0
     distance = {}
-    # iterate over the order and go to the next pod as long as there are items left 
-    # in the order
+    # iterate over the ordesr and go to the next pod as long as there are items
+    # left in the order
     while order.shape[0] != 0:
+        if pr: print("-----------------------------------")
         # find the nearest pod that contains at least one item of the SKU
         possiblePodsDistances = []
         # for each SKU, find the nearest pod that contains at least one item of that SKU
+        if pr: print("Remaining SKUs in the order are:"), print(list(order.index))
         for SKU in order.index:
             # find all pods that contain at least one item of the SKU and get the minimum
             # distance to any of them
-            #print("---- SKU ----")
-            #print(SKU)
+            if pr: print("-- Checking SKU " + str(SKU))
             SKUNearestPod = {}
             for podID, items in podCopy.items():
                 if SKU in items.index:
-                    #print("-- podID: " + str(podID) +" --")
-                    #print(items)
-                    #print("--distance: " + str(round(distance_ij[(str(route[-1]), str(podID))], 1)))
+                    if pr: print("---- podID: " + str(podID)), print("---- items in this pod:"), print(items), print("---- distance to this pod: " + str(round(distance_ij[(str(route[-1]), str(podID))], 1)))
                     SKUNearestPod[podID] = round(distance_ij[(str(route[-1]), str(podID))], 1)
-            #print(min(SKUNearestPod))
-            #print(SKUNearestPod[min(SKUNearestPod)])
+            if pr: print("-- Nearest pod for SKU " + str(SKU) + " is " + str(min(SKUNearestPod)))
+            if pr: print("-- Distance to the nearest pod for this SKU: " + str(SKUNearestPod[min(SKUNearestPod)]))
             possiblePodsDistances.append({"itemID":SKU,
                                           "pod":min(SKUNearestPod),
                                           "distance":SKUNearestPod[min(SKUNearestPod)]})
             #possiblePodsDistances[SKU] = minDist
         # for all SKUs, find the one whose nearest pod is nearest to the current position
         possiblePodsDistances = pd.DataFrame(possiblePodsDistances)
+        if pr: print("Distances to possible pods are:"), print(possiblePodsDistances)
         nextSKU = possiblePodsDistances[possiblePodsDistances.distance == possiblePodsDistances.distance.min()]
         nextSKU = nextSKU.sample()
         # add the distance to the respective pod to the total path distance
-        ### print("NextSKU:" + str(nextSKU))
         distance[(str(route[-1]), str(int(nextSKU.pod)))] = round(float(nextSKU.distance), 1)
         # remove all items from the order that are in the pod and the order
-        nextPod = podCopy[int(nextSKU.pod)]
+        if pr: print("Next pod to be visited is: " + str(int(nextSKU.pod)))
         # for each SKU in the order, check whether items of it are in the next pod
         # first iterate over all the items in the order
         picked = []
+        if pr: print("Picking items from pod " + str(int(nextSKU.pod)))
+        if pr: print(podCopy[int(nextSKU.pod)])
         for index, row in order.iterrows():
+            if pr: print("-- Trying to pick SKU " + str(index))
             # next, check if each item is in the pod
-            if index in nextPod.index:
+            if index in podCopy[int(nextSKU.pod)].index:
+                if pr: print("---- SKU " + str(index) + " is in pod " + str(int(nextSKU.pod)))
                 # if it is in the pod, determine whether all items from the order can be
                 # picked from the pod, or whether there are more items in the pod than
                 # there are in the order
-                itemsToPick = min(row.quantity, nextPod.loc[index].Count)
-                # remove the items that could be picked from the order
-                if order.loc[index, "quantity"] == itemsToPick:
-                    order = order.drop(index)
-                else:
-                    order.loc[index, "quantity"] -= itemsToPick
-                # remove the items that could be picked from the order
-                if nextPod.loc[index, "Count"] == itemsToPick:
-                    nextPod = nextPod.drop(index)
-                else:
-                    nextPod.loc[index, "Count"] -= itemsToPick
+                itemsToPick = min(row.quantity, podCopy[int(nextSKU.pod)].loc[index].Count)
+                if pr: print("---- "+ str(itemsToPick) + " items of SKU " + str(index) + " can be picked.")
+                # Removing items from the order:
+                if pr: print("------ Removing " + str(str(itemsToPick)) + " items of SKU " + str(index) + " from the order.")
+                order.loc[index, "quantity"] -= itemsToPick
+                # Removing the items from the shelves:
+                if pr: print("------ Removing " + str(str(itemsToPick)) + " items of SKU " + str(index) + " from pod "+ str(int(nextSKU.pod)))
+                podCopy[int(nextSKU.pod)].loc[index, "Count"] -= itemsToPick
                 ### print("Removed " +  str(itemsToPick) + " item(s) of SKU " + str(index) + " from the order and from pod " + str(int(nextSKU.pod)) + ".")
                 picked.append({"itemID":index, "count":itemsToPick})
         # add the pod to the route
         route.append(int(nextSKU.pod))
         routeInfo[int(nextSKU.pod)] = picked
+        # trying to delete all rows from the order and all pods where quantity of a SKU is 0
+        order = order.drop(list(order[order.quantity == 0].index))
+        podCopy = {podID:podItems.drop(list(podItems[podItems.Count ==0].index)) for podID, podItems in podCopy.items()}
     # add the last path of the route, from the last pod back to the station
     distance[(str(route[-1]), station)] = round(distance_ij[(str(route[-1]), station)], 1)
     route.append(station)
@@ -279,7 +282,7 @@ def F_fitnessValueOrderToStation(order, station, podCopy):
 
 #%% perform the check of the fitness value for each order and station to decide
 # which station the order should go to
-def F_orderToStation(orderInfoDict, podInfoDict):
+def F_orderToStation(orderInfoDict, podInfoDict, pr = False):
     """Function to assign each order to one station.
 
     Parameters
@@ -295,6 +298,7 @@ def F_orderToStation(orderInfoDict, podInfoDict):
     orderToStation: dictionary, one key per orderID, value is a string representing the station to which the order is assigned
     
     allOrderInformation:  dictionary, one key per orderID. Value is a dictionary, with four key value pairs: "distances travelled" contains a dictionary, with a tuple as keys that represents the pods / stations visited, and the distance between them. "route taken" is a list of station names / pods, which shows the route an order has taken. "route information" is itslef a dictionary, with one key per pod visited. Values are dictionaries that are a little too complicated.
+    
     """
     # simple dict, keys are orderID, value is string representing station to which
     # the order is assigned
@@ -303,8 +307,11 @@ def F_orderToStation(orderInfoDict, podInfoDict):
     while len(orderInfoDict) > 0:
         # pick a random key from the orders
         orderID = rd.choice(list(orderInfoDict.keys()))
+        if pr: print("order ID selected: " + str(orderID))
         # remove the corresponding key-value pair from the dictionary and save the order
         order = orderInfoDict.pop(orderID)["items"]
+        if pr: print("Order:")
+        if pr: print(order)
         # this dictionary will contain information about the route of each order
         # for all stations, in order to compare any order for all given stations.
         orderToStationInformation = {}
@@ -320,21 +327,24 @@ def F_orderToStation(orderInfoDict, podInfoDict):
             # Each value is a list of dictionaries, and each dictionary contains the
             # itemID of an item picked at a respective pod, and the count of that
             # item picked at that pod.
-            orderToStationOutput = F_fitnessValueOrderToStation(order, station, podInfoDict)
+            orderToStationOutput = F_fitnessValueOrderToStation(order, station, podInfoDict, pr = pr)
+            if pr: print(orderToStationOutput)
             # storing information about routing of an order for each station
             orderToStationInformation[station] = orderToStationOutput
             # directly calculating the total distance of an order for a given station
             orderToStationInformation[station]["total distance"] = \
                 sum(list(orderToStationOutput["distances travelled"].values()))
-        # pick on of the stations to assign the order to: select only the total
+        # pick one of the stations to assign the order to: select only the total
         # distance to each station
         distanceToStations = \
             {station:orderToStationInformation[station]["total distance"] for \
              station in orderToStationInformation}
+        if pr: print("Distance to stations: "), print(distanceToStations)
         # pick the station that minimises the distance travelled, and add it to the
         # list of chosen stations
         chosenStation = min(distanceToStations, key = distanceToStations.get)
         orderToStation[orderID] = chosenStation
+        if pr: print("Assigning order " + str(orderID) + " to station " + str(chosenStation))
         # get information about the route of the order for the chosen station
         chosenStationInfo = {orderID:orderToStationInformation[chosenStation]}
         # add the information about the route for the chosen station to the dict
@@ -592,22 +602,24 @@ def recalculateRouteForSolution(solution, podInfoDict):
         batch["batchPods"] = set(orderAssignment["route taken"][1:-1])
 
 #%% importing files for mixed shelf policy and creating the instances needed
+skus = 360
+storagepolicy = "mixed" # this can't be changed here
 
-layoutFile = 'data/layout/1-1-1-2-1.xlayo' 
+layoutFile = f'data/layout/1-1-1-2-1.xlayo'
 # loading all the information about the pods
-podInfoFile = r'data/sku24/pods_infos.txt'
+podInfoFile = f'data/sku{skus}/pods_infos.txt'
 # loading information about picking locations, packing stations, waypoints,
 # pods 
-instanceFile = r'data/sku24/layout_sku_24_2.xml'
+instanceFile = f'data/sku{skus}/layout_sku_{skus}_2.xml'
 
 # loading information about item storage: contains all SKUs along with their
 # attributes
-storagePolicyFile = r'data/pods/pods_items_mixed_shevels_1-5_24.txt'
+storagePolicyFile = f'data/sku{skus}/pods_items_{storagepolicy}_shevels_1-5.txt'
 #storagePolicies['mixed'] = 'data/sku24/pods_items_mixed_shevels_1-5.txt'
 
 # loading information about the orders: contains list of orders, with number
 # of ordered items per SKU-ID
-orderFile =r'data/sku24/orders_10_mean_1x6_sku_24.xml'
+orderFile = f'data/sku{skus}/orders_20_mean_5_sku_{skus}_b.xml'
 #orders['20_5']=r'data/sku24/orders_20_mean_5_sku_24.xml'
 
 #%% preparing the data
@@ -615,6 +627,7 @@ warehouseInstance = instance.Warehouse(layoutFile, instanceFile, podInfoFile, st
 batch_weight = 18
 item_id_pod_id_dict = {}
 distance_ij = demo.WarehouseDateProcessing(warehouseInstance).CalculateDistance()
+distance_ij = {key:round(value, 1) for key, value in distance_ij.items()}
 # getting the data
 podInfoDict, itemsInfoDict, orderInfoDict, packingStationNames = prepareData(warehouseInstance)
 
@@ -622,7 +635,8 @@ podInfoDict, itemsInfoDict, orderInfoDict, packingStationNames = prepareData(war
 ordersCopy = copy.deepcopy(orderInfoDict)
 podCopy = copy.deepcopy(podInfoDict)
 # assigning orders to stations
-orderAssignment = F_orderToStation(ordersCopy, podCopy)
+# orderAssignment = 
+orderAssignment = F_orderToStation(ordersCopy, podCopy, False)
 # creating a solution from the assignment of orders to stations
 solution = createSolutionFromOrderAssignment(orderAssignment, packingStationNames)
 print(round(solutionDistance(solution), 2))

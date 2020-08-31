@@ -118,7 +118,7 @@ class WarehouseDateProcessing():
             d_ij = {}
             for i, values in d_ij_dict.items():
                 for j, dist in values.items():
-                    d_ij[i,j] = dist                
+                    d_ij[i,j] = dist
         return d_ij
 
 #%% 

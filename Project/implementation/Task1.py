@@ -10,146 +10,6 @@ import pandas as pd
 import copy
 import numpy as np
 import random as rd
-import os
-from os import path
-import json
-import networkx as nx
-
-
-#%% defining the class 
-class WarehouseDateProcessing():
-    def __init__(self, warehouseInstance, batch_size = None):
-        self.Warehouse = warehouseInstance
-        self._InitSets(warehouseInstance, batch_size)   
-
-    def preprocessingFilterPods(self, warehouseInstance):
-        resize_pods = {}
-        print("preprocessingFilterPods")
-        item_id_list=[]
-        for order in warehouseInstance.Orders:
-            for pos in order.Positions.values():
-                item = warehouseInstance.ItemDescriptions[pos.ItemDescID].Color.lower() + '/' + warehouseInstance.ItemDescriptions[pos.ItemDescID].Letter
-                #item_id = pos.ItemDescID
-                if item not in item_id_list:
-                    item_id_list.append(item)
-                    #print(item_id)
- 
-
-        #for item in item_id_list:
-        #    print(item)
-
-        # for dedicated
-        for pod in warehouseInstance.Pods.values():
-            for item in pod.Items:
-                #print("item in pod.Items:", item.ID)
-                if item.ID in item_id_list:
-                    print("item.ID in item_id_list:", item.ID)
-                    resize_pods[pod.ID] = pod
-        
-        print(resize_pods)
-        return resize_pods
-
-    # Initialize sets and parameters           
-    def _InitSets(self,warehouseInstance, batch_size):
-        #V Set of nodes, including shelves V^S and stations (depots)
-        # V^D (V=V^S U V^D)
-        #Add output and input depots
-        
-        self.V__D__C = warehouseInstance.OutputStations
-        ##self.V__D__F = warehouseInstance.InputStations
-        self.V__D__F = {}
-        #depot = ('D999', )
-        #Old self.V__D = {'D999':depot}
-             
-        self.V__D = {**self.V__D__C, **self.V__D__F}
-        
-        #hli
-        #self.V__S = warehouseInstance.Pods
-        self.V__S = self.preprocessingFilterPods(warehouseInstance)
-        
-        #Merge dictionaries
-        self.V = {**self.V__D, **self.V__S}
-
-    def CalculateDistance(self):
-
-        file_path = r'data/distances/' + os.path.splitext(os.path.basename(self.Warehouse.InstanceFile))[0] + '.json'
-        
-        if not path.exists(file_path):
-            #Create d_ij
-            #d_ij = tupledict()
-            d_ij = {}
-            
-            #Loop over all nodes
-            for key_i, node_i in self.V.items():
-                for key_j, node_j in self.V.items():  
-                    
-                    source = 'w'+node_i.GetPickWaypoint().ID
-                    target = 'w'+node_j.GetPickWaypoint().ID
-                    
-                    #Calc distance with weighted shortest path
-                    d_ij[(key_i,key_j)] = nx.shortest_path_length(self.Graph, source=source, target=target, weight='weight')
-            
-            #Parse and save
-            d_ij_dict = {}
-            for key,value in d_ij.items():
-                i,j = key  
-                if i not in d_ij_dict:
-                    d_ij_dict[i]={} 
-                d_ij_dict[i][j] = value
-            
-            with open(file_path, 'w') as fp:
-                json.dump(d_ij_dict, fp)
-        
-        else: 
-            #Load and deparse
-            with open(file_path, 'r') as fp:
-                d_ij_dict = json.load(fp)
-            print('d_ij file %s loaded'%(file_path)) 
-                
-            #d_ij = tupledict()
-            d_ij = {}
-            for i, values in d_ij_dict.items():
-                for j, dist in values.items():
-                    d_ij[i,j] = dist                
-        return d_ij
-
-#%% 
-class Demo():
-    def __init__(self, splitOrders = False):
-        
-        self.batch_weight = 18
-        self.item_id_pod_id_dict = {}
-        #[0]
-        self.warehouseInstance = self.prepareData()
-        self.distance_ij = self.initData()
-        #[2]
-        if storagePolicies.get('dedicated'):
-            self.is_storage_dedicated = True
-        else:
-            self.is_storage_dedicated = False
-
-
-	# warehouse instance
-    def prepareData(self):
-        print("[0] preparing all data with the standard format: ")
-        #Every instance
-        for key,instanceFile in instances.items():
-            #podAmount = key[0]
-            #depotAmount = key[1]   
-            #For different orders
-            for key, orderFile in orders.items():
-                # orderAmount = key
-                #For storage policies
-                for storagePolicy, storagePolicyFile in storagePolicies.items():   
-                    warehouseInstance = instance.Warehouse(layoutFile, instanceFile, podInfoFile, storagePolicyFile, orderFile)
-        return warehouseInstance
-
-    def initData(self):
-        print("[1] changing data format for the algorithm we used here: ")
-        warehouse_data_processing = WarehouseDateProcessing(self.warehouseInstance)
-        #Distance d_ij between two nodes i,j \in V
-        d_ij = warehouse_data_processing.CalculateDistance()
-        return d_ij
 
 #%% control knobs
 
@@ -162,10 +22,11 @@ orderAmount = 10
 # Specify the number of items in the warehouse (either 24 or 360)
 itemAmount = 24
 
+# SPecifiy the pod amount
+podAmount = 24
+
 # Specify the policy (either "dedicated_1" or "mixed_shevels_1-5")
 podPolicy = "dedicated_1"
-
-test = 'data/sku''/pods_infos.txt'
 
 #%% A) importing files and creating instances defined in instance_demo.py
 
@@ -194,7 +55,7 @@ warehouseInstance = instance.Warehouse(layoutFile, instanceFile, podInfoFile, st
 batch_weight = 18
 item_id_pod_id_dict = {}
 
-distance_ij = WarehouseDateProcessing(warehouseInstance).CalculateDistance()
+distance_ij = demo.WarehouseDateProcessing(warehouseInstance).CalculateDistance()
 
 
 #%% Necessary functions
@@ -203,7 +64,17 @@ distance_ij = WarehouseDateProcessing(warehouseInstance).CalculateDistance()
 # generates the object warehouseInstance that contains all relevant information
 # about the project
 
-
+#%%
+def F_podInfo(podAmount):
+    infoList = []
+    for podPosition in range(0, podAmount):
+        itemInPod = warehouseInstance.Pods[str(podPosition)].Items
+        for item in itemInPod:
+            info = {"inPod":podPosition, "Description": item.ID, "itemCount": item.Count}
+            infoList.append(info)
+    infoList = pd.DataFrame(infoList)
+    return(infoList)
+        
 
 #%% F_itemInfo
 def F_itemInfo(itemID):
@@ -224,6 +95,15 @@ def F_itemInfo(itemID):
     item["Description"] = itemDesc
     return(item)
     
+#%% F_itemInfoList(itemAmount):
+def F_itemInfoList(itemAmount):
+    itemInfoList = []
+    for itemID in range(0, itemAmount):
+        itemInfoList.append(F_itemInfo(itemID))
+    itemInfoList = pd.DataFrame(itemInfoList)
+    return(itemInfoList)
+        
+
 #%% F_orderInfo
 def F_orderInfo(orderID):
     """Returns a list of dictionaries with information about an order specified
@@ -346,6 +226,12 @@ def F_createDistMat():
 
 #%% LUKAS: understood until here
     
+#%%
+def F_itemsToPodLocation(listOfItems):
+    listOfPods = []
+    for item in listOfItems:
+        listOfPods.append(itemInfoList[itemInfoList.ID == str(item)].inPod.values[0])
+    return(listOfPods)
 
 #%% 
 def F_itemsInBatch(batchList): 
@@ -369,7 +255,7 @@ def F_itemsInBatch(batchList):
 #%% F_minDistance
     # Comment from Lukas: did not yet fully check the function, but I did 
     # understand its basic functionality.
-def F_minDist(items, packingStation):
+def F_minDist(items, itemInfoList, packingStation):
     """For a given list of items and a packing station, returns the shortest
     possible route of pods and stations, where each item is contained in one 
     of the pods.
@@ -388,9 +274,12 @@ def F_minDist(items, packingStation):
     # Call for distance matrix
     F_createDistMat()    
     
+    # For the list of items, find the corresponding pod locations 
+    pods = F_itemsToPodLocation(items)
+    
     # Create destructive copy of nodesOfPods, so that each
     # node can be removed later
-    currentBatch = items.copy()
+    currentBatch = pods.copy()
     
     # First node of route is the chosen packing station
     route = [packingStation] 
@@ -431,7 +320,7 @@ def F_minDist(items, packingStation):
 #%% F_assignOrderToStation
     # Comment from Lukas: did not yet fully check the function, but I did 
     # understand its basic functionality.
-def F_assignOrderToStation(orderAmount, type = "full"):
+def F_assignOrderToStation(orderAmount, itemInfoList, type = "full"):
     """ ???
     
     Parameters
@@ -453,10 +342,10 @@ def F_assignOrderToStation(orderAmount, type = "full"):
     for orderID in range(orderAmount):
         itemsInOrder = F_itemsInOrder(orderID)
         # print("----Order " + str(count) +"----")
-        fromStation0 = F_minDist(itemsInOrder, "OutD0")
+        fromStation0 = F_minDist(itemsInOrder, itemInfoList, "OutD0")
         # print("If start at station 0:")
         # print(fromStation0)
-        fromStation1 = F_minDist(itemsInOrder, "OutD1")
+        fromStation1 = F_minDist(itemsInOrder, itemInfoList,  "OutD1")
         # print("If start at station 1:")
         # print(fromStation1)
         if type == "full":
@@ -474,7 +363,7 @@ def F_assignOrderToStation(orderAmount, type = "full"):
     return(station)
 
 #%%
-def F_orderToBatch(listOfOrders, packingStation):
+def F_orderToBatch(listOfOrders, itemInfoList, packingStation):
     """ For a given sset of orders, returns a list of all feasible batches that
     can be generated using these orders.
 
@@ -526,8 +415,8 @@ def F_orderToBatch(listOfOrders, packingStation):
     # weight of all items in the batch
     for b in batch:
         item = F_itemsInBatch(b)
-        dist = F_minDist(item, packingStation)["distance"]
-        route = F_minDist(item, packingStation)["route"]
+        dist = F_minDist(item, itemInfoList, packingStation)["distance"]
+        route = F_minDist(item, itemInfoList, packingStation)["route"]
         del route[0]
         del route[-1]
         batchInfo.append({"batchID": batchID, "ordersInBatch": b, "routeInBatch" : route, "distance": dist, "weight" : F_weightOfOrdersInBatch(b)})
@@ -537,7 +426,7 @@ def F_orderToBatch(listOfOrders, packingStation):
     return(batchInfo)
 
 #%% F_greedyHeuristic(batchInfo):
-def F_greedyHeuristic(batchFromStation, packingStation):
+def F_greedyHeuristic(batchFromStation, itemInfoList, packingStation):
     """Greedy heuristic to assign orders to batches, for an already given
     assignment of orders to stations, and for only one station.
 
@@ -910,10 +799,25 @@ def F_newSol(oriSol, removedBatch, removedOrder, remainSol, pickedBatch, pickedO
     
 
 #%% Task 1
+
+#%% Full information on items and their location in the pods
+podInfoList = F_podInfo(podAmount)
+itemInfoList = F_itemInfoList(itemAmount)
+itemInfoList = pd.merge(podInfoList, itemInfoList, how = "left", on = "Description")
+
 # From all orders, assign them to the optimal packing station:
 # I use option "lite" here to get two list of orders for two packing station, as
 # input for the next function. To see information of the orders, use option "full"
-station = F_assignOrderToStation(orderAmount, "lite")
+station = F_assignOrderToStation(orderAmount, itemInfoList, "lite")
+stationFull = F_assignOrderToStation(orderAmount, itemInfoList, "full")
+
+
+#%% Theorical scenario: SOLL
+# station = {"OutD0" : [4,5,6,7],
+#            "OutD1" : [0,1,2,3,8,9]}
+
+
+#%%
 
 # For each station, create feasible batches from the orders, which also includes
 # the sequence of pods visited for the cobot, as well as the minimum distance
@@ -928,14 +832,18 @@ for i in range(len(station)):
     listOfOrders = list(stationCopy.values())[i] 
         # assign orders from list of orders to batches, procuding all feasible
         # batches for each station
-    batchFromStation.append({"station":packingStation, "batchInfo":F_orderToBatch(listOfOrders, packingStation)})
+    batchFromStation.append({"station":packingStation, "batchInfo":F_orderToBatch(listOfOrders, itemInfoList, packingStation)})
 del stationCopy
 
+#%%
 # Final result for each of the station: for each station, take all feasible 
 # batches and run the greedy heuristic to choose the optimal sequence of 
 # batches
-greedyStation0 = F_greedyHeuristic(batchFromStation, packingStation = "OutD0")
-greedyStation1 = F_greedyHeuristic(batchFromStation, packingStation = "OutD1")
+greedyStation0 = F_greedyHeuristic(batchFromStation, itemInfoList, packingStation = "OutD0")
+greedyStation1 = F_greedyHeuristic(batchFromStation, itemInfoList, packingStation = "OutD1")
+
+
+
 
 #%% Task 2
 # results of delete and repair from random neibour
@@ -949,4 +857,157 @@ pickedBatch1, pickedOrder1, pickedBatchInfo1 = F_randomPickBatch(batchFromStatio
 F_newSol(greedyStation1,removedBatch1, removedOrder1, remainSol1, pickedBatch1, pickedOrder1, pickedBatchInfo1)
 
 
+<<<<<<< HEAD
     
+=======
+#%% importing files for mixed shelf policy and creating the instances needed
+
+layoutFile = r'data/layout/1-1-1-2-1.xlayo' 
+# loading all the information about the pods
+podInfoFile = r'data/sku24/pods_infos.txt'
+# loading information about picking locations, packing stations, waypoints,
+# pods 
+instanceFile = r'data/sku24/layout_sku_24_2.xml'
+
+# loading information about item storage: contains all SKUs along with their
+# attributes
+storagePolicyFile = r'data/pods/pods_items_mixed_shevels_1-5_24.txt'
+#storagePolicies['mixed'] = 'data/sku24/pods_items_mixed_shevels_1-5.txt'
+
+# loading information about the orders: contains list of orders, with number
+# of ordered items per SKU-ID
+orderFile =r'data/sku24/orders_10_mean_5_sku_24.xml'
+#orders['20_5']=r'data/sku24/orders_20_mean_5_sku_24.xml'
+
+# trying a different way to get the demonstration running
+# function to prepare data
+warehouseInstance = instance.Warehouse(layoutFile, instanceFile, podInfoFile, storagePolicyFile, orderFile)
+
+batch_weight = 18
+item_id_pod_id_dict = {}
+
+distance_ij = demo.WarehouseDateProcessing(warehouseInstance).CalculateDistance()
+
+#%% getting data
+
+# getting data about which items are in which pods, building a dictionary that is easier to read
+podInfoDict = {int(pod):[{"Description":item.ID, "Count":int(item.Count)} for item in warehouseInstance.Pods[pod].Items] for pod in warehouseInstance.Pods}
+
+# getting data about the items
+itemsInfoDict = [{"ID":int(warehouseInstance.ItemDescriptions[SKU].ID), "Description":warehouseInstance.ItemDescriptions[SKU].Color + "/" + warehouseInstance.ItemDescriptions[SKU].Letter, "Weight":warehouseInstance.ItemDescriptions[SKU].Weight} for SKU in warehouseInstance.ItemDescriptions]
+
+# getting data about orders
+orderInfoDict = {order:[{"itemID":int(position), "quantity":int(warehouseInstance.Orders[order].Positions[position].Count)} for position in warehouseInstance.Orders[order].Positions] for order in range(0, len(warehouseInstance.Orders))}
+
+# getting data about packing stations
+packingStationNames = list(warehouseInstance.OutputStations.keys())
+
+#%% replacing item description in podInfoDict with item ID
+# getting an item ID for an item description
+for pod in podInfoDict.keys():
+    for podItem in podInfoDict[pod]:
+        podItem["ID"] = [item["ID"] for item in itemsInfoDict if item["Description"] == podItem["Description"]][0]
+
+#%% converting data to DataFrames, where it helps
+for pod in podInfoDict:
+    podInfoDict[pod] = pd.DataFrame(podInfoDict[pod]).set_index("ID")
+#%%
+for order in orderInfoDict:
+    orderInfoDict[order] = pd.DataFrame(orderInfoDict[order]).set_index("itemID")
+    
+itemsInfoDict = pd.DataFrame(itemsInfoDict).set_index("ID")
+
+
+#%%
+# -----------------------------------------------------
+# greedy heuristic to determine the route with which to fulfil an order, and its fitness value
+# pick an order
+order = copy.deepcopy(orderInfoDict[0])
+# pick a station
+station = packingStationNames[0]
+podCopy = copy.deepcopy(podInfoDict)
+
+def F_fitnessValueOrderToStation(order, station, podCopy):
+    """For a given station and order, returns the fitness value of that order. Currently, the fitness order is the distance travelled to fulfil the order.
+    The distance is calculated greedily: for all items in the order, the algorithm looks for the nearest pod that contains any of the items and chooses to visit it. From this pod, it tries to pick as many items as possible.
+
+    Parameters
+    ----------
+    order : 
+        typically a deep copy of .orderInfoDict
+    station : TYPE
+        one of packingStationNames
+    podInfo : TYPE
+        typically a deep copy of podInfoDict.
+
+    Returns
+    -------
+    None.
+
+    """
+    # get a path
+    route = [station]
+    routeInfo = {}
+    # set the distance of the path to 0
+    distance = {}
+    # iterate over the order and go to the next pod as long as there are items left 
+    # in the order
+    while order.shape[0] != 0:
+        # find the nearest pod that contains at least one item of the SKU
+        possiblePodsDistances = []
+        # for each SKU, find the nearest pod that contains at least one item of that SKU
+        for SKU in order.index:
+            # find all pods that contain at least one item of the SKU and get the minimum
+            # distance to any of them
+            #print("---- SKU ----")
+            #print(SKU)
+            SKUNearestPod = {}
+            for podID, items in podCopy.items():
+                if SKU in items.index:
+                    #print("-- podID: " + str(podID) +" --")
+                    #print(items)
+                    #print("--distance: " + str(round(distance_ij[(str(route[-1]), str(podID))], 1)))
+                    SKUNearestPod[podID] = round(distance_ij[(str(route[-1]), str(podID))], 1)
+            #print(min(SKUNearestPod))
+            #print(SKUNearestPod[min(SKUNearestPod)])
+            possiblePodsDistances.append({"itemID":SKU,
+                                          "pod":min(SKUNearestPod),
+                                          "distance":SKUNearestPod[min(SKUNearestPod)]})
+            #possiblePodsDistances[SKU] = minDist
+        # for all SKUs, find the one whose nearest pod is nearest to the current position
+        possiblePodsDistances = pd.DataFrame(possiblePodsDistances)
+        nextSKU = possiblePodsDistances[possiblePodsDistances.distance == possiblePodsDistances.distance.min()]
+        # add the distance to the respective pod to the total path distance
+        distance[(str(route[-1]), str(int(nextSKU.pod)))] = round(float(nextSKU.distance), 1)
+        # remove all items from the order that are in the pod and the order
+        nextPod = podCopy[int(nextSKU.pod)]
+        # for each SKU in the order, check whether items of it are in the next pod
+        # first iterate over all the items in the order
+        picked = []
+        for index, row in order.iterrows():
+            # next, check if each item is in the pod
+            if index in nextPod.index:
+                # if it is in the pod, determine whether all items from the order can be
+                # picked from the pod, or whether there are more items in the pod than
+                # there are in the order
+                itemsToPick = min(row.quantity, nextPod.loc[index].Count)
+                # remove the items that could be picked from the order
+                if order.loc[index, "quantity"] == itemsToPick:
+                    order = order.drop(index)
+                else:
+                    order.loc[index, "quantity"] -= itemsToPick
+                # remove the items that could be picked from the order
+                if nextPod.loc[index, "Count"] == itemsToPick:
+                    nextPod = nextPod.drop(index)
+                else:
+                    nextPod.loc[index, "Count"] -= itemsToPick
+                print("Removed " +  str(itemsToPick) + " item(s) of SKU " + str(index) + " from the order and from pod " + str(int(nextSKU.pod)) + ".")
+                picked.append({"itemID":index, "count":itemsToPick})
+        # add the pod to the route
+        route.append(int(nextSKU.pod))
+        routeInfo[int(nextSKU.pod)]= picked
+    # add the last path of the route, from the last pod back to the station
+    distance[(str(route[-1]), station)] = round(distance_ij[(str(route[-1]), station)], 1)
+    route.append(station)
+    return({"distances travelled":distance, "route taken":route, "route information":routeInfo, "altered podInfoDict":podCopy})
+>>>>>>> 5df0c95fe01c63af885b494e6f839f552c068bf4
