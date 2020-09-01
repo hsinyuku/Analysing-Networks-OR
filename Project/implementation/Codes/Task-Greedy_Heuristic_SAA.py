@@ -14,11 +14,16 @@ import rafs_instance as instance
 import random as rd
 import numpy.random as rn
 import sys, os
+import pickle
+import xml.etree.ElementTree as ET
 
 #%% control knobs
 
+# Specify version of order ("", "_a" or "_b")
+orderVersion = ""
+
 # SPecify mean item amount in an order (either 1x6 or 5)
-meanItemInOrder = "1x6"
+meanItemInOrder = "5"
 
 # Specify the number of orders we receive (either 10 or 20)
 orderAmount = 10
@@ -49,7 +54,7 @@ storagePolicyFile = 'data/sku' + str(itemAmount) + '/pods_items_' + str(podPolic
 
 # loading information about the orders: contains list of orders, with number
 # of ordered items per SKU-ID
-orderFile =r'data/sku' + str(itemAmount) + '/orders_' + str(orderAmount) + '_mean_' + str(meanItemInOrder) + '_sku_' + str(itemAmount) + '.xml'
+orderFile =r'data/sku' + str(itemAmount) + '/orders_' + str(orderAmount) + '_mean_' + str(meanItemInOrder) + '_sku_' + str(itemAmount) + orderVersion + '.xml'
 #orders['20_5']=r'data/sku24/orders_20_mean_5_sku_24.xml'
 
 # trying a different way to get the demonstration running
@@ -215,7 +220,7 @@ def F_createDistMat():
     distMat = pd.DataFrame(distMat)
     
     # Add column names
-    distMat.columns = ['OutD0', 'OutD1'] + [i for i in range(0,24)]
+    distMat.columns = ['OutD0', 'OutD1'] + [i for i in range(0,itemAmount)]
     
     # Add an indexing column FromPod
     distMat.insert(0, "fromPod", distMat.columns)
@@ -227,8 +232,6 @@ def F_createDistMat():
     distToStation1 = distMat[["OutD1"]]
     distMat = distMat.drop(["OutD0","OutD1"], axis = 1) 
 
-#%% LUKAS: understood until here
-    
 #%%
 def F_itemsToPodLocation(listOfItems):
     listOfPods = []
@@ -363,6 +366,10 @@ def F_assignOrderToStation(orderAmount, itemInfoList, type = "full"):
                 station["OutD0"].append(orderID)
             else: 
                 station["OutD1"].append(orderID)
+    if station["OutD0"] == []:
+        station["OutD0"].append(station["OutD1"].pop(0))
+    elif station["OutD1"] == []:
+        station["OutD1"].append(station["OutD0"].pop(0))
     return(station)
 
 #%%
@@ -534,6 +541,9 @@ def F_greedyHeuristic(station, batchFromStation, itemInfoList, packingStation):
 #%%
 def F_feasibleBatch(station):
     batchFromStation = []
+    '''
+    the function get all the feasible batches for a station. 
+    '''
     
     for i in range(len(station)):
         stationCopy = copy.deepcopy(station)
@@ -547,41 +557,25 @@ def F_feasibleBatch(station):
     del stationCopy
     return(batchFromStation)
 
-#%% Task 1
 
-#%% Full information on items and their location in the pods
-
-podInfoList = F_podInfo(podAmount)
-itemInfoList = F_itemInfoList(itemAmount)
-itemInfoList = pd.merge(podInfoList, itemInfoList, how = "left", on = "Description")
-
-# From all orders, assign them to the optimal packing station:
-# I use option "lite" here to get two list of orders for two packing station, as
-# input for the next function. To see information of the orders, use option "full"
-station = F_assignOrderToStation(orderAmount, itemInfoList, "lite")
-stationFull = F_assignOrderToStation(orderAmount, itemInfoList, "full")
-
-## Theorical scenario: 
-# station = {"OutD0" : [4,5,6,7], "OutD1" : [0,1,2,3,8,9]}   
-
-batchFromStation = F_feasibleBatch(station)
-greedyStation0 = F_greedyHeuristic(station, batchFromStation, itemInfoList, packingStation = "OutD0")
-greedyStation1 = F_greedyHeuristic(station, batchFromStation, itemInfoList, packingStation = "OutD1")
-
-greedyStation0 = greedyStation0.drop(["numberOfBatchCovered"],axis=1)
-greedyStation1 = greedyStation1.drop(["numberOfBatchCovered"],axis=1)
-
-oriSol = [greedyStation0, greedyStation1]
-oriDis = sum(greedyStation0['distance'])+sum(greedyStation1['distance'])
-    
 #%%
 def SwapStation(station, n):
+    '''
+    This function is used in simulate annealing to randomly reassign orders to
+    different stations. 
+
+    Parameters
+    ----------
+    station : the assignment of orders to each station.
+    n : number of orders to be swapped.
+    -------
+    '''
+    
     stationCo=copy.deepcopy(station)
     
     print("# of orders to change station is "+str(n))
     
     if len(stationCo['OutD0'])>1 and len(stationCo['OutD0'])>1: 
-
         #print("Situation 1")
         ordToMoved=rd.sample(range(10),n)
         
@@ -599,17 +593,26 @@ def SwapStation(station, n):
     for i in range(len(ordToMoved)):
         for key, value in stationCo.items(): 
             if ordToMoved[i] not in value: 
-                    #print(str(ordToMoved[i])+" is not in "+str(key)) 
                 value.append(ordToMoved[i]) 
             else:
                 value.remove(ordToMoved[i])
-        ### Need to check stationCo not empty!!!!
+
     print(stationCo)   
     
     return([stationCo, ordToMoved])    
 
 #%%
 def F_neighbour(station, n): 
+    '''
+    This is used in simulated annealing algorithm(SAA) to create the neighbor o
+
+    Parameters
+    ----------
+    station : the assignment of orders to each station.
+    n : number of orders to be swapped.
+    -------
+
+    '''
     newStation, orderMoved = SwapStation(station, n)
     newFB = F_feasibleBatch(newStation)
     sol0 = F_greedyHeuristic(newStation, newFB, itemInfoList, packingStation = "OutD0")
@@ -622,10 +625,24 @@ def F_neighbour(station, n):
 
 #%%
 def accept_prob(cost, new_cost, T):
+    '''
+    This is a small function used in simulated annealing algorithm(SAA) to 
+    caluculate the probability to accept a solution.  
+
+    Parameters
+    ----------
+    cost : original distance
+    new_cost : new distance
+    T : temperature in SAA.
+
+    Returns
+    -------
+    p : the probability to accept a solution
+
+    '''
+    
     print("oriDis is: "+str(cost))
     #print("newDis is: "+str(new_cost))
-    #print(new_cost<cost)
-    #print(new_cost==cost)
     
     if new_cost < cost: return 1
     
@@ -635,8 +652,25 @@ def accept_prob(cost, new_cost, T):
      
 #%%
 def SAA(oriSol, oriDis, station, T, alpha, tempLimit, n):
+    '''
+    This is the simulated annealing algorithm, given an original solution, 
+    it will keep finding solutions in neighbourhood until the minimum 
+    temperature is reached. The distances of every solution found are recorded 
+    in DisRec. The optimal results is recorded in optDisRec. 
+
+    Parameters
+    ----------
+    oriSol : original solution
+    oriDis : original distance
+    station : the assignment of orders to each station.
+    T : temperature
+    alpha
+    tempLimit : minimum temperature
+    n : number of orders to be swapped.
+    -------
+    '''
+    
     print("  ")
-    #print("------------------ For station "+str(Station) +"------------------")
     T=T
     alpha = alpha
     epsilon = tempLimit
@@ -661,6 +695,7 @@ def SAA(oriSol, oriDis, station, T, alpha, tempLimit, n):
     #if T==1000:    
     round=0
     orderMovedList = [] 
+    
     while T > epsilon:  
       round=round+1
       print("   ")
@@ -684,13 +719,12 @@ def SAA(oriSol, oriDis, station, T, alpha, tempLimit, n):
       orderMoved = newSol[3]
       orderMovedList.append(orderMoved)
       
-      #Accept the neibour if it has smaller distance
-      #print("FFF")
+      #Accept the neibour if it has smaller distance / if p > random number
       p = accept_prob(oriDis, newDis, T)
       #print("FFF")
       uRan = rn.random()
       
-      #if newDis < oriDis:
+      
       if p > uRan:
           if p==1:
               print("newDis is better / not worse than oriDis --> accept newSol")
@@ -729,175 +763,178 @@ def SAA(oriSol, oriDis, station, T, alpha, tempLimit, n):
     
     return([oriSol, optSol, round, DisRec, optDisRec])
 
-#%% Task 2: SAA
+#%%
+def F_convertInputForXMLfromSAA(finalRes):
+    result = {"OutD0": finalRes[1][0].to_dict("records"), "OutD1": finalRes[1][1].to_dict("records")}
+    
+    for station in result.keys():
+        for batch in result[station]:
+            batch["itemInBatch"] = F_itemsInBatch(batch["ordersInBatch"])
+            batch["routeInBatch"] = [station] + batch["routeInBatch"] + [station]
+    return(result)
+     
+#%%
+def F_convertInputForXMLfromGreedy(oriSol):
+    result = {"OutD0": oriSol[0].to_dict("records"), "OutD1": oriSol[1].to_dict("records")}
+    
+    for station in result.keys():
+        for batch in result[station]:
+            batch["itemInBatch"] = F_itemsInBatch(batch["ordersInBatch"])
+            batch["routeInBatch"] = [station] + batch["routeInBatch"] + [station]
+    return(result)
+   
+#%% writing the solution to .xml
+def writeSolutionXML_SAA(result, itemInfoList, filename):
+  
+    # base element
+    root = ET.Element("root")
+    # first section "split" contains information about which orders are in which batches, and which batches are assigned to which station (=bot)
+    collecting = ET.SubElement(root, "Collecting")
+    split = ET.SubElement(collecting, 'Split')
+    packingStationNames = result.keys()
+    # write each station as a sub-node of split
+    for station in packingStationNames:
+        Bot_ID = ET.SubElement(split, "Bot")
+        Bot_ID.set("ID", station)
+        # filter the solution so it only contains batches for the right station
+        stationSolution = result[station]
+        # write each batch as a sub-node of Bot_ID
+        batchID = 1
+        for batch in stationSolution:
+            Batch_ID = ET.SubElement(Bot_ID, "Batch")
+            Batch_ID.set("ID", str(batchID))
+            batchID += 1
+            # write Orders as the sub-node of Batch_ID
+            Orders = ET.SubElement(Batch_ID, "Orders")
+            # write each order as sub-node of Batch_ID
+            for order in batch["ordersInBatch"]:
+                Order = ET.SubElement(Orders, "Order")
+                Order.text = str(order)
+                
+    # first section "bots" contains detailed information about each bot (station)
+    bots = ET.SubElement(collecting, "Bots")
+    # write each station as a sub-node of bots
+    for station in packingStationNames:
+        Bot_ID = ET.SubElement(bots, "Bot")
+        Bot_ID.set("ID", station)
+        stationSolution = result[station]
+        # batches are written in sub-node Batches of Bot_ID
+        Batches = ET.SubElement(Bot_ID, "Batches")
+        # write each batch as a sub-node of Bot_ID
+        batchID = 1
+        for batch in stationSolution:
+            Batch_ID = ET.SubElement(Batches, "Batch")
+            Batch_ID.set("BatchNumber", str(batchID))
+            Batch_ID.set("Distance", str(batch["distance"]))
+            Batch_ID.set("Weight", str(batch["weight"]))
+            batchID += 1
+            # for each batch, write two sub-nodes: itemsData, edges
+            # first write ItemsData
+            ItemsData = ET.SubElement(Batch_ID, "ItemsData")
+            # ItemsData has a sub-node called Orders
+            Orders = ET.SubElement(ItemsData, "Orders")
+            # write each order as sub-node of Orders:
+            for order in batch["ordersInBatch"]:
+                Order = ET.SubElement(Orders, "Order")
+                Order.set("ID", str(order))
+                
+                # write each item in the order as sub-node of Order
+                itemList = F_itemsInOrder(int(order))
+                for item in itemList:
+                    Item = ET.SubElement(Order, "Item")
+                    # for each item, conclude information about the itemID and the description
+                    Item.set("ID", str(item))
+                    Item.set("Type", itemInfoList.loc[item, "Description"])
+         
+            # write Edges as sub-node of Batch_ID
+            Edges = ET.SubElement(Batch_ID, "Edges")       
+            # write every edge of the batch
+            edgeIndex = list(range(0, len(batch["routeInBatch"]) - 1))
+            for edge in edgeIndex:
+                Edge = ET.SubElement(Edges, "Edge")
+                Edge.set("StartNode", str(batch["routeInBatch"][edge]))
+                Edge.set("EndNode", str(batch["routeInBatch"][edge + 1]))
+    
+
+    tree = ET.ElementTree(root)
+    tree.write(filename)
+
+#%%
+
+# Main script starting from here used the aboved functions 
+
+
+#%% Task 1'- Greedy Heurisitc 
+
+# Full information on items and their location in the pods
+
+podInfoList = F_podInfo(podAmount)
+itemInfoList = F_itemInfoList(itemAmount)
+itemInfoList = pd.merge(podInfoList, itemInfoList, how = "left", on = "Description")
+
+# From all orders, assign them to the optimal packing station:
+# I use option "lite" here to get two list of orders for two packing station, as
+# input for the next function. To see information of the orders, use option "full"
+station = F_assignOrderToStation(orderAmount, itemInfoList, "lite")
+stationFull = F_assignOrderToStation(orderAmount, itemInfoList, "full")
+
+## Theorical scenario: 
+# station = {"OutD0" : [4,5,6,7], "OutD1" : [0,1,2,3,8,9]}   
+
+batchFromStation = F_feasibleBatch(station)
+
+greedyStation0 = F_greedyHeuristic(station, batchFromStation, itemInfoList, packingStation = "OutD0")
+greedyStation1 = F_greedyHeuristic(station, batchFromStation, itemInfoList, packingStation = "OutD1")
+
+greedyStation0 = greedyStation0.drop(["numberOfBatchCovered"],axis=1)
+greedyStation1 = greedyStation1.drop(["numberOfBatchCovered"],axis=1)
+
+# original solution and its fitting value, the total distance 
+oriSol = [greedyStation0, greedyStation1]
+oriDis = sum(greedyStation0['distance'])+sum(greedyStation1['distance'])
+
+#%%
+# Prepare results as input to write XML
+inputXMLGreedy = F_convertInputForXMLfromGreedy(oriSol)
+
+# Write XML
+outputName = 'orders_' + str(orderAmount) + '_mean_' + str(meanItemInOrder) + '_sku_' + str(itemAmount) + str(orderVersion) + '_solution_dedicated_greedy.xml'
+
+writeSolutionXML_SAA(inputXMLGreedy, itemInfoList, outputName)
+#%%
+# Task 2: SAA
 
 # To try first, run the follow for 3 round: 
 #finalRes = SAA(oriSol, oriDis, station, T=10, alpha=0.8, tempLimit=5, n=1)
 
-finalRes = SAA(oriSol, oriDis, station, T=1000, alpha=0.8, tempLimit=0.1, n=1)
+finalRes = SAA(oriSol, oriDis, station, T= 5000, alpha=0.95, tempLimit=0.01, n=1)
 
 print("After round "+str(finalRes[2])+" ,the optimal distance is "+str(finalRes[4][-1]))
 print("Optimal Solution is ")
 print(finalRes[1][0])
 print(finalRes[1][1])
 
+# Prepare results as input to write XML
+inputXMLSAA = F_convertInputForXMLfromSAA(finalRes)
+
+# Write XML
+outputName = 'orders_' + str(orderAmount) + '_mean_' + str(meanItemInOrder) + '_sku_' + str(itemAmount) + str(orderVersion) + '_solution_dedicated_SAA.xml'
+writeSolutionXML_SAA(inputXMLSAA, itemInfoList, outputName)
+
 #%% Task 2: Perturbation
 
-#N = rd.randint(2,orderAmount-1) 
-perturRes = SAA(oriSol, oriDis, station, T=1000, alpha=0.8, tempLimit=0.1, n=2)
+#n = rd.randint(2,orderAmount-1) 
+perturRes = SAA(oriSol, oriDis, station, T=10000, alpha=0.8, tempLimit=0.01, n=2)
 
 
-<<<<<<< HEAD
-    
-=======
-#%% importing files for mixed shelf policy and creating the instances needed
-
-layoutFile = r'data/layout/1-1-1-2-1.xlayo' 
-# loading all the information about the pods
-podInfoFile = r'data/sku24/pods_infos.txt'
-# loading information about picking locations, packing stations, waypoints,
-# pods 
-instanceFile = r'data/sku24/layout_sku_24_2.xml'
-
-# loading information about item storage: contains all SKUs along with their
-# attributes
-storagePolicyFile = r'data/pods/pods_items_mixed_shevels_1-5_24.txt'
-#storagePolicies['mixed'] = 'data/sku24/pods_items_mixed_shevels_1-5.txt'
-
-# loading information about the orders: contains list of orders, with number
-# of ordered items per SKU-ID
-orderFile =r'data/sku24/orders_10_mean_5_sku_24.xml'
-#orders['20_5']=r'data/sku24/orders_20_mean_5_sku_24.xml'
-
-# trying a different way to get the demonstration running
-# function to prepare data
-warehouseInstance = instance.Warehouse(layoutFile, instanceFile, podInfoFile, storagePolicyFile, orderFile)
-
-batch_weight = 18
-item_id_pod_id_dict = {}
-
-distance_ij = demo.WarehouseDateProcessing(warehouseInstance).CalculateDistance()
-
-#%% getting data
-
-# getting data about which items are in which pods, building a dictionary that is easier to read
-podInfoDict = {int(pod):[{"Description":item.ID, "Count":int(item.Count)} for item in warehouseInstance.Pods[pod].Items] for pod in warehouseInstance.Pods}
-
-# getting data about the items
-itemsInfoDict = [{"ID":int(warehouseInstance.ItemDescriptions[SKU].ID), "Description":warehouseInstance.ItemDescriptions[SKU].Color + "/" + warehouseInstance.ItemDescriptions[SKU].Letter, "Weight":warehouseInstance.ItemDescriptions[SKU].Weight} for SKU in warehouseInstance.ItemDescriptions]
-
-# getting data about orders
-orderInfoDict = {order:[{"itemID":int(position), "quantity":int(warehouseInstance.Orders[order].Positions[position].Count)} for position in warehouseInstance.Orders[order].Positions] for order in range(0, len(warehouseInstance.Orders))}
-
-# getting data about packing stations
-packingStationNames = list(warehouseInstance.OutputStations.keys())
-
-#%% replacing item description in podInfoDict with item ID
-# getting an item ID for an item description
-for pod in podInfoDict.keys():
-    for podItem in podInfoDict[pod]:
-        podItem["ID"] = [item["ID"] for item in itemsInfoDict if item["Description"] == podItem["Description"]][0]
-
-#%% converting data to DataFrames, where it helps
-for pod in podInfoDict:
-    podInfoDict[pod] = pd.DataFrame(podInfoDict[pod]).set_index("ID")
-#%%
-for order in orderInfoDict:
-    orderInfoDict[order] = pd.DataFrame(orderInfoDict[order]).set_index("itemID")
-    
-itemsInfoDict = pd.DataFrame(itemsInfoDict).set_index("ID")
 
 
-#%%
-# -----------------------------------------------------
-# greedy heuristic to determine the route with which to fulfil an order, and its fitness value
-# pick an order
-order = copy.deepcopy(orderInfoDict[0])
-# pick a station
-station = packingStationNames[0]
-podCopy = copy.deepcopy(podInfoDict)
 
-def F_fitnessValueOrderToStation(order, station, podCopy):
-    """For a given station and order, returns the fitness value of that order. Currently, the fitness order is the distance travelled to fulfil the order.
-    The distance is calculated greedily: for all items in the order, the algorithm looks for the nearest pod that contains any of the items and chooses to visit it. From this pod, it tries to pick as many items as possible.
 
-    Parameters
-    ----------
-    order : 
-        typically a deep copy of .orderInfoDict
-    station : TYPE
-        one of packingStationNames
-    podInfo : TYPE
-        typically a deep copy of podInfoDict.
 
-    Returns
-    -------
-    None.
 
-    """
-    # get a path
-    route = [station]
-    routeInfo = {}
-    # set the distance of the path to 0
-    distance = {}
-    # iterate over the order and go to the next pod as long as there are items left 
-    # in the order
-    while order.shape[0] != 0:
-        # find the nearest pod that contains at least one item of the SKU
-        possiblePodsDistances = []
-        # for each SKU, find the nearest pod that contains at least one item of that SKU
-        for SKU in order.index:
-            # find all pods that contain at least one item of the SKU and get the minimum
-            # distance to any of them
-            #print("---- SKU ----")
-            #print(SKU)
-            SKUNearestPod = {}
-            for podID, items in podCopy.items():
-                if SKU in items.index:
-                    #print("-- podID: " + str(podID) +" --")
-                    #print(items)
-                    #print("--distance: " + str(round(distance_ij[(str(route[-1]), str(podID))], 1)))
-                    SKUNearestPod[podID] = round(distance_ij[(str(route[-1]), str(podID))], 1)
-            #print(min(SKUNearestPod))
-            #print(SKUNearestPod[min(SKUNearestPod)])
-            possiblePodsDistances.append({"itemID":SKU,
-                                          "pod":min(SKUNearestPod),
-                                          "distance":SKUNearestPod[min(SKUNearestPod)]})
-            #possiblePodsDistances[SKU] = minDist
-        # for all SKUs, find the one whose nearest pod is nearest to the current position
-        possiblePodsDistances = pd.DataFrame(possiblePodsDistances)
-        nextSKU = possiblePodsDistances[possiblePodsDistances.distance == possiblePodsDistances.distance.min()]
-        # add the distance to the respective pod to the total path distance
-        distance[(str(route[-1]), str(int(nextSKU.pod)))] = round(float(nextSKU.distance), 1)
-        # remove all items from the order that are in the pod and the order
-        nextPod = podCopy[int(nextSKU.pod)]
-        # for each SKU in the order, check whether items of it are in the next pod
-        # first iterate over all the items in the order
-        picked = []
-        for index, row in order.iterrows():
-            # next, check if each item is in the pod
-            if index in nextPod.index:
-                # if it is in the pod, determine whether all items from the order can be
-                # picked from the pod, or whether there are more items in the pod than
-                # there are in the order
-                itemsToPick = min(row.quantity, nextPod.loc[index].Count)
-                # remove the items that could be picked from the order
-                if order.loc[index, "quantity"] == itemsToPick:
-                    order = order.drop(index)
-                else:
-                    order.loc[index, "quantity"] -= itemsToPick
-                # remove the items that could be picked from the order
-                if nextPod.loc[index, "Count"] == itemsToPick:
-                    nextPod = nextPod.drop(index)
-                else:
-                    nextPod.loc[index, "Count"] -= itemsToPick
-                print("Removed " +  str(itemsToPick) + " item(s) of SKU " + str(index) + " from the order and from pod " + str(int(nextSKU.pod)) + ".")
-                picked.append({"itemID":index, "count":itemsToPick})
-        # add the pod to the route
-        route.append(int(nextSKU.pod))
-        routeInfo[int(nextSKU.pod)]= picked
-    # add the last path of the route, from the last pod back to the station
-    distance[(str(route[-1]), station)] = round(distance_ij[(str(route[-1]), station)], 1)
-    route.append(station)
-    return({"distances travelled":distance, "route taken":route, "route information":routeInfo, "altered podInfoDict":podCopy})
->>>>>>> 5df0c95fe01c63af885b494e6f839f552c068bf4
+
+
+
+
+
