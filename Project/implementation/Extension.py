@@ -148,7 +148,7 @@ def prepareData(warehouseInstance):
     for key, value in orderInfoDict.items():
         orderWeight = 0
         for item in value["items"]:
-            orderWeight += itemsInfoDict[item["itemID"]]["Weight"]
+            orderWeight += itemsInfoDict[item["itemID"]]["Weight"] * item["quantity"]
         value["total weight"] = orderWeight
     
     # getting data about packing stations
@@ -668,7 +668,7 @@ def writeSolutionXML(solution, filename):
     tree.write(filename)
 
 #%% importing files for mixed shelf policy and creating the instances needed
-skus = 360
+skus = 24
 storagepolicy = "mixed" # this can't be changed here
 
 layoutFile = f'data/layout/1-1-1-2-1.xlayo'
@@ -685,7 +685,7 @@ storagePolicyFile = f'data/sku{skus}/pods_items_{storagepolicy}_shevels_1-5.txt'
 
 # loading information about the orders: contains list of orders, with number
 # of ordered items per SKU-ID
-orderFile = f'orders_20_mean_5_sku_{skus}.xml'
+orderFile = f'orders_20_mean_5_sku_{skus}_b.xml'
 orderPath = f'data/sku{skus}/' + orderFile
 #orders['20_5']=r'data/sku24/orders_20_mean_5_sku_24.xml'
 
